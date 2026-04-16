@@ -175,6 +175,16 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function getDaysInMonth(monthKey) {
+  const [y, m] = monthKey.split("-").map(Number);
+  const last = new Date(y, m, 0).getDate();
+  const days = [];
+  for (let d = 1; d <= last; d++) {
+    days.push(`${monthKey}-${String(d).padStart(2, "0")}`);
+  }
+  return days;
+}
+
 function currentMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -377,21 +387,36 @@ function deleteEntry(date) {
 }
 
 function getMonthRows(monthKey) {
-  const cfg = getMonthConfig(monthKey);
-  let solde = parseNum(cfg.soldeDebutMois);
+  const cfg  = getMonthConfig(monthKey);
+  const defs = getDefaults();
+  let solde  = parseNum(cfg.soldeDebutMois);
 
   const allLines = loadEntries(KEYS.debitLines)
     .filter(l => String(l.date || "").startsWith(monthKey));
 
-  return loadEntries(KEYS.tresoV2)
+  const entriesMap = {};
+  loadEntries(KEYS.tresoV2)
     .filter(r => String(r.date || "").startsWith(monthKey))
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map(r => {
-      const dateLines = allLines.filter(l => l.date === r.date);
-      const computed  = computeRow(r, dateLines);
-      solde += computed.netJour;
-      return { ...computed, soldeCumulatif: solde };
-    });
+    .forEach(r => { entriesMap[r.date] = r; });
+
+  return getDaysInMonth(monthKey).map(date => {
+    const exists = !!entriesMap[date];
+    const r = exists ? entriesMap[date] : {
+      date, _v: 2,
+      ca: 0, caN1: 0,
+      debit1Label: defs.debit1Label || "Direct", debit1Amount: 0,
+      debit2Label: defs.debit2Label || "Com CB",  debit2Amount: 0,
+      debit3Label: defs.debit3Label || "CRF",     debit3Amount: 0,
+      debit4Label: defs.debit4Label || "",         debit4Amount: 0,
+      credit2Label: defs.credit2Label || "Credit client", credit2Amount: 0,
+      credit3Label: defs.credit3Label || "Depot especes", credit3Amount: 0,
+      note: ""
+    };
+    const dateLines = allLines.filter(l => l.date === date);
+    const computed  = computeRow(r, dateLines);
+    solde += computed.netJour;
+    return { ...computed, soldeCumulatif: solde, _exists: exists };
+  });
 }
 
 function renderKpis(monthKey) {
@@ -429,9 +454,9 @@ function renderKpis(monthKey) {
 }
 
 function renderTable(monthKey) {
-  const rows = getMonthRows(monthKey);
-  const d    = getDefaults();
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const rows    = getMonthRows(monthKey);
+  const d       = getDefaults();
+  const today   = new Date().toISOString().slice(0, 10);
   let dividerInserted = false;
 
   const setTh = (id, txt) => { const th = document.getElementById(id); if (th) th.textContent = txt; };
@@ -443,13 +468,19 @@ function renderTable(monthKey) {
   setTh("th-credit3", d.credit3Label || "Depot");
 
   const E = (field, date, type) => `data-field="${field}" data-date="${date}" data-type="${type}"`;
+
   el.tableBody.innerHTML = rows.map(r => {
-    const isFuture   = r.date > todayISO;
-    const soldeClass = r.soldeCumulatif < 0 ? "danger" : r.soldeCumulatif < 2000 ? "warn" : "ok";
-    const netClass   = r.netJour < 0 ? "danger" : r.netJour > 0 ? "ok" : "";
-    const shortNote  = r.note ? (r.note.length > 28 ? r.note.substring(0, 28) + "\u2026" : r.note) : "-";
-    const hasLines   = r.debitLines && r.debitLines.length > 0;
-    const rowClass   = [hasLines ? "has-lines" : "", isFuture ? "preview-row" : ""].filter(Boolean).join(" ");
+    const isFuture  = r.date > today;
+    const isToday   = r.date === today;
+    const isEmpty   = !r._exists;
+    const hasLines  = r.debitLines && r.debitLines.length > 0;
+
+    const classes = [
+      hasLines ? "has-lines" : "",
+      isFuture ? "preview-row" : "",
+      isToday  ? "today-row"   : "",
+      isEmpty  ? "empty-row"   : ""
+    ].filter(Boolean).join(" ");
 
     let divider = "";
     if (isFuture && !dividerInserted) {
@@ -457,20 +488,27 @@ function renderTable(monthKey) {
       divider = `<tr class="today-divider"><td colspan="13">\u25bc Projections</td></tr>`;
     }
 
-    const mainRow = `<tr class="${rowClass}">
-      <td><strong>${r.date}</strong></td>
-      <td class="col-debit editable" ${E("debit1Amount", r.date, "number")}>${r.debit1Amount ? eur(r.debit1Amount) : "-"}</td>
-      <td class="col-debit editable" ${E("debit2Amount", r.date, "number")}>${r.debit2Amount ? eur(r.debit2Amount) : "-"}</td>
-      <td class="col-debit editable" ${E("debit3Amount", r.date, "number")}>${r.debit3Amount ? eur(r.debit3Amount) : "-"}</td>
-      <td class="col-debit editable" ${E("debit4Amount", r.date, "number")}>${r.debit4Amount ? eur(r.debit4Amount) : "-"}</td>
-      <td class="col-credit editable" ${E("ca", r.date, "number")}><strong>${eur(r.ca)}</strong></td>
-      <td class="col-credit muted-val editable" ${E("caN1", r.date, "number")}>${r.caN1 ? eur(r.caN1) : "-"}</td>
-      <td class="col-credit editable" ${E("credit2Amount", r.date, "number")}>${r.credit2Amount ? eur(r.credit2Amount) : "-"}</td>
-      <td class="col-credit editable" ${E("credit3Amount", r.date, "number")}>${r.credit3Amount ? eur(r.credit3Amount) : "-"}</td>
+    const soldeClass = r.soldeCumulatif < 0 ? "danger" : r.soldeCumulatif < 2000 ? "warn" : "ok";
+    const netClass   = r.netJour < 0 ? "danger" : r.netJour > 0 ? "ok" : "";
+    const shortNote  = r.note ? (r.note.length > 28 ? r.note.substring(0, 28) + "\u2026" : r.note) : "";
+    const delBtn     = r._exists ? `<button data-del="${r.date}" type="button">\u00d7</button>` : "";
+
+    const dv = (v, fmt) => v ? fmt(v) : "";  // affiche rien si zéro/vide
+
+    const mainRow = `<tr class="${classes}" data-row-date="${r.date}">
+      <td class="date-cell"><strong>${r.date.slice(8)}</strong><span class="date-full">${r.date}</span></td>
+      <td class="col-debit editable" ${E("debit1Amount", r.date, "number")}>${dv(r.debit1Amount, eur)}</td>
+      <td class="col-debit editable" ${E("debit2Amount", r.date, "number")}>${dv(r.debit2Amount, eur)}</td>
+      <td class="col-debit editable" ${E("debit3Amount", r.date, "number")}>${dv(r.debit3Amount, eur)}</td>
+      <td class="col-debit editable" ${E("debit4Amount", r.date, "number")}>${dv(r.debit4Amount, eur)}</td>
+      <td class="col-credit editable" ${E("ca", r.date, "number")}>${dv(r.ca, eur)}</td>
+      <td class="col-credit muted-val editable" ${E("caN1", r.date, "number")}>${dv(r.caN1, eur)}</td>
+      <td class="col-credit editable" ${E("credit2Amount", r.date, "number")}>${dv(r.credit2Amount, eur)}</td>
+      <td class="col-credit editable" ${E("credit3Amount", r.date, "number")}>${dv(r.credit3Amount, eur)}</td>
       <td class="col-solde ${soldeClass}"><strong>${eur(r.soldeCumulatif)}</strong></td>
-      <td class="${netClass}" style="font-size:11px;white-space:nowrap">${r.netJour !== 0 ? (r.netJour > 0 ? "+" : "") + eur(r.netJour) : "-"}</td>
+      <td class="${netClass}" style="font-size:11px;white-space:nowrap">${r.netJour ? (r.netJour > 0 ? "+" : "") + eur(r.netJour) : ""}</td>
       <td class="note-cell editable" ${E("note", r.date, "text")} title="${r.note || ""}">${shortNote}</td>
-      <td><button data-del="${r.date}" type="button">\u00d7</button></td>
+      <td class="del-cell">${delBtn}</td>
     </tr>`;
 
     const subRows = (r.debitLines || []).map(l => `<tr class="debit-line-row${isFuture ? " preview-row" : ""}">
@@ -1129,14 +1167,15 @@ el.tableBody.addEventListener("click", e => {
   const date  = td.dataset.date;
   const type  = td.dataset.type || "text";
 
-  const rows = loadEntries(KEYS.tresoV2);
-  const row  = rows.find(r => r.date === date);
-  if (!row) return;
+  const existingRows = loadEntries(KEYS.tresoV2);
+  const existingRow  = existingRows.find(r => r.date === date);
 
-  const input    = document.createElement("input");
-  input.type     = type;
-  if (type === "number") input.step = "0.01";
-  input.value    = type === "number" ? parseNum(row[field]) || 0 : (row[field] || "");
+  const input     = document.createElement("input");
+  input.type      = type;
+  if (type === "number") { input.step = "0.01"; input.min = "0"; }
+  input.value     = type === "number"
+    ? (existingRow ? parseNum(existingRow[field]) || "" : "")
+    : (existingRow ? existingRow[field] || "" : "");
   input.className = "cell-edit-input";
 
   td.textContent = "";
@@ -1144,18 +1183,72 @@ el.tableBody.addEventListener("click", e => {
   input.focus();
   if (type === "number") input.select();
 
+  const debitRefMap = { debit1Amount: "D1", debit2Amount: "D2", debit3Amount: "D3", debit4Amount: "D4" };
+
   const save = () => {
-    const newVal   = type === "number" ? parseNum(input.value) : String(input.value).trim();
-    const rowsAll  = loadEntries(KEYS.tresoV2);
-    const i        = rowsAll.findIndex(r => r.date === date);
-    if (i >= 0) { rowsAll[i][field] = newVal; saveEntries(KEYS.tresoV2, rowsAll); }
+    const rawVal = input.value.trim();
+    const newVal = type === "number" ? parseNum(rawVal) : rawVal;
+
+    const rowsAll = loadEntries(KEYS.tresoV2);
+    const i       = rowsAll.findIndex(r => r.date === date);
+
+    if (i >= 0) {
+      // Mise à jour d'une entrée existante
+      rowsAll[i][field] = newVal;
+      saveEntries(KEYS.tresoV2, rowsAll);
+      // Auto-catégoriser si c'est un montant débit
+      const ref = debitRefMap[field];
+      if (ref) {
+        const lbl = rowsAll[i][field.replace("Amount", "Label")] || ref;
+        const cat = suggestCategory(lbl);
+        ensureCategory(cat);
+        if (newVal > 0) {
+          upsertAutoCategoryEntry({ id: `cat-${ref}-${date}`, sourceRef: `${ref}-${date}`, date, category: cat, source: "Debit journal", amount: newVal, label: lbl });
+        } else {
+          saveEntries(KEYS.catEntries, loadEntries(KEYS.catEntries).filter(e => e.sourceRef !== `${ref}-${date}`));
+        }
+      }
+    } else if (newVal !== 0 && newVal !== "") {
+      // Création d'une nouvelle entrée pour ce jour
+      const defs = getDefaults();
+      const newEntry = {
+        date, _v: 2, ca: 0, caN1: 0,
+        debit1Label: defs.debit1Label || "Direct", debit1Amount: 0,
+        debit2Label: defs.debit2Label || "Com CB",  debit2Amount: 0,
+        debit3Label: defs.debit3Label || "CRF",     debit3Amount: 0,
+        debit4Label: defs.debit4Label || "",         debit4Amount: 0,
+        credit2Label: defs.credit2Label || "Credit client", credit2Amount: 0,
+        credit3Label: defs.credit3Label || "Depot especes", credit3Amount: 0,
+        note: ""
+      };
+      newEntry[field] = newVal;
+      upsertEntry(newEntry);
+      // Auto-catégoriser si c'est un montant débit
+      const ref = debitRefMap[field];
+      if (ref && newVal > 0) {
+        const lbl = newEntry[field.replace("Amount", "Label")] || ref;
+        const cat = suggestCategory(lbl);
+        ensureCategory(cat);
+        upsertAutoCategoryEntry({ id: `cat-${ref}-${date}`, sourceRef: `${ref}-${date}`, date, category: cat, source: "Debit journal", amount: newVal, label: lbl });
+      }
+    }
     rerender();
   };
 
   input.addEventListener("blur", save);
   input.addEventListener("keydown", ev => {
     if (ev.key === "Enter")  { ev.preventDefault(); input.blur(); }
-    if (ev.key === "Escape") { rerender(); }
+    if (ev.key === "Escape") { input.removeEventListener("blur", save); rerender(); }
+    if (ev.key === "Tab") {
+      ev.preventDefault();
+      input.removeEventListener("blur", save);
+      // Trouver la prochaine cellule éditable
+      const allTds = [...el.tableBody.querySelectorAll("td[data-field]")];
+      const idx    = allTds.indexOf(td);
+      const next   = allTds[ev.shiftKey ? idx - 1 : idx + 1];
+      save();
+      if (next) setTimeout(() => next.click(), 60);
+    }
   });
 });
 

@@ -111,6 +111,21 @@ button[data-del]:hover{background:#fca5a5}
 .tag.credit{background:#f0fdf4;border-color:#86efac;color:#166534}
 .tag.solde{background:#eff6ff;border-color:#93c5fd;color:#1e3a8a}
 
+/* ── Tableau plein-mois ──────────────────────────────────────────────────── */
+.date-cell{white-space:nowrap}
+.date-full{display:none}
+.del-cell{width:32px;text-align:center}
+
+/* Ligne vide (aucune saisie ce jour) */
+tr.empty-row td{color:#c8d3e0;font-size:12px}
+tr.empty-row .col-solde{color:#94a3b8;font-weight:400;font-size:12px}
+tr.empty-row .col-debit,tr.empty-row .col-credit{background:transparent!important}
+tr.empty-row:hover td{background:rgba(12,74,138,.04)!important;color:#475569}
+
+/* Ligne d'aujourd'hui */
+tr.today-row>td{background:#fffbeb!important;border-top:2px solid #fbbf24;border-bottom:2px solid #fbbf24}
+tr.today-row .date-cell strong{color:#d97706;font-size:14px}
+
 /* ── Lignes projetées (date future) ─────────────────────────────────────── */
 tr.preview-row td{background:#faf5ff!important;font-style:italic;color:#6b21a8}
 tr.preview-row .col-debit{background:#f3e8ff!important}
