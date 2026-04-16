@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Suivi Tresorerie</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <h1>Suivi Tresorerie</h1>
+      <p>CA, ecarts d'encaissement et disponibilite reellement en banque</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="treso">Tresorerie</button>
+      <button class="tab" data-tab="tr">TR fournisseurs</button>
+      <button class="tab" data-tab="depenses">Depenses caisse</button>
+      <button class="tab" data-tab="coupons">SOGEC / Scan coupons</button>
+      <button class="tab" data-tab="demarque">Demarque</button>
+    </nav>
+
+    <section class="panel active" id="panel-treso">
+      <section class="card">
+      <h2>Saisie du jour</h2>
+      <form id="entry-form" class="grid">
+        <label>Date
+          <input id="date" type="date" required>
+        </label>
+        <label>CA jour (EUR)
+          <input id="ca" type="number" step="0.01" min="0" required placeholder="0.00">
+        </label>
+        <label>Tickets resto en attente (EUR)
+          <input id="trPending" type="number" step="0.01" min="0" value="0">
+        </label>
+        <label>Especes non versees (EUR)
+          <input id="cashPending" type="number" step="0.01" min="0" value="0">
+        </label>
+        <label>Autres encaissements non credites (EUR)
+          <input id="otherPending" type="number" step="0.01" min="0" value="0">
+        </label>
+        <label>Depenses du jour (EUR)
+          <input id="expenses" type="number" step="0.01" min="0" value="0">
+        </label>
+        <label class="wide">Commentaire
+          <input id="note" type="text" maxlength="180" placeholder="Ex: remise espece demain, TR du week-end">
+        </label>
+        <button type="submit">Enregistrer / Mettre a jour</button>
+      </form>
+      </section>
+
+      <section class="card metrics">
+        <h2>Dashboard mois courant</h2>
+        <div id="kpis" class="kpis"></div>
+      </section>
+
+      <section class="card">
+        <div class="row">
+          <h2>Journal mensuel</h2>
+          <div>
+            <input id="monthPicker" type="month">
+            <button id="exportBtn" type="button">Exporter CSV</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>CA</th>
+                <th>TR en attente</th>
+                <th>Especes non versees</th>
+                <th>Autres en attente</th>
+                <th>Depenses</th>
+                <th>Ecart total</th>
+                <th>Disponible reel</th>
+                <th>Note</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Pistes d'amelioration</h2>
+        <ul id="improvements"></ul>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-tr">
+      <section class="card">
+        <h2>Ajout TR (avec detection doublon)</h2>
+        <div class="row" style="margin-bottom:10px;">
+          <label style="margin:0;font-size:12px;">
+            Import Excel TR
+            <input id="trImportXlsx" type="file" accept=".xlsx,.xls,.csv" style="margin-left:6px;">
+          </label>
+          <div>
+            <button id="trKeepFirstBtn" type="button">Garder 1er / supprimer doublons</button>
+          </div>
+        </div>
+        <form id="tr-form" class="grid">
+          <label>Date
+            <input id="trDate" type="date" required>
+          </label>
+          <label>Fournisseur
+            <select id="trProvider">
+              <option>SCANCOUPON</option>
+              <option>SOGEC</option>
+              <option>HIGH CO DATA</option>
+              <option>EDENRED</option>
+              <option>BIMPLI</option>
+              <option>UP DEJEUNER</option>
+            </select>
+          </label>
+          <label>Reference ticket / lot
+            <input id="trRef" type="text" placeholder="Ref bordereau / lot">
+          </label>
+          <label>Montant (EUR)
+            <input id="trAmount" type="number" step="0.01" min="0" required>
+          </label>
+          <label class="wide">Source
+            <input id="trSource" type="text" value="Saisie manuelle">
+          </label>
+          <button type="submit">Ajouter TR</button>
+        </form>
+      </section>
+      <section class="card metrics">
+        <h2>Resume TR par fournisseur</h2>
+        <div id="trKpis" class="kpis"></div>
+      </section>
+      <section class="card">
+        <div class="row">
+          <h2>Journal TR</h2>
+          <button id="trExportBtn" type="button">Exporter CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th><th>Fournisseur</th><th>Ref</th><th>Montant</th><th>Source</th><th>Doublon</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="trTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-depenses">
+      <section class="card">
+        <h2>Depenses caisse (fonction uniquement)</h2>
+        <p class="muted">Fonctions copiees depuis le modele Excel: saisie date/rayon/montant + total mensuel. Aucune donnee importee.</p>
+        <form id="depForm" class="grid">
+          <label>Date<input id="depDate" type="date" required></label>
+          <label>Rayon / motif<input id="depRayon" type="text" required></label>
+          <label>Montant<input id="depAmount" type="number" step="0.01" min="0" required></label>
+          <button type="submit">Ajouter depense</button>
+        </form>
+      </section>
+      <section class="card">
+        <div id="depTotal" class="kpi"><div class="v">0 EUR</div><div class="l">Total depenses</div></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Rayon</th><th>Montant</th><th></th></tr></thead><tbody id="depTableBody"></tbody></table></div>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-coupons">
+      <section class="card">
+        <h2>SOGEC / Scan coupons (fonction uniquement)</h2>
+        <p class="muted">Fonctions copiees: suivi envoi/remboursement, ecart attendu/recu. Donnees non importe es.</p>
+        <form id="cpForm" class="grid">
+          <label>Date envoi<input id="cpSentDate" type="date" required></label>
+          <label>Type<input id="cpType" type="text" placeholder="SCANCOUPON / SOGEC"></label>
+          <label>Montant attendu<input id="cpExpected" type="number" step="0.01" min="0" required></label>
+          <label>Date remboursement<input id="cpPaidDate" type="date"></label>
+          <label>Montant recu<input id="cpPaid" type="number" step="0.01" min="0" value="0"></label>
+          <button type="submit">Ajouter suivi</button>
+        </form>
+      </section>
+      <section class="card">
+        <div class="table-wrap"><table><thead><tr><th>Type</th><th>Envoi</th><th>Attendu</th><th>Rembourse</th><th>Recu</th><th>Ecart</th><th></th></tr></thead><tbody id="cpTableBody"></tbody></table></div>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-demarque">
+      <section class="card">
+        <h2>Suivi demarque hebdo (fonction uniquement)</h2>
+        <p class="muted">Fonctions copiees: semaine, CA, demarque, taux %. Donnees non importe es.</p>
+        <form id="dmForm" class="grid">
+          <label>Semaine<input id="dmWeek" type="number" min="1" max="53" required></label>
+          <label>CA<input id="dmCa" type="number" step="0.01" min="0" required></label>
+          <label>Demarque<input id="dmLoss" type="number" step="0.01" min="0" required></label>
+          <button type="submit">Ajouter ligne</button>
+        </form>
+      </section>
+      <section class="card">
+        <div class="table-wrap"><table><thead><tr><th>Semaine</th><th>CA</th><th>Demarque</th><th>Taux</th><th></th></tr></thead><tbody id="dmTableBody"></tbody></table></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
