@@ -117,6 +117,30 @@ function currentMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function normalizeDate(v){
+  const s=String(v||"").trim();
+  if(!s) return "";
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(!m) return s;
+  const d=String(m[1]).padStart(2,"0");
+  const mo=String(m[2]).padStart(2,"0");
+  const y=String(m[3]).length===2?`20${m[3]}`:String(m[3]);
+  return `${y}-${mo}-${d}`;
+}
+
+function normalizeRef(v){
+  return String(v||"").toUpperCase().replace(/\s+/g,"").replace(/[^A-Z0-9]/g,"");
+}
+
+function detectProviderFromText(text){
+  const s=String(text||"").toUpperCase();
+  if(s.includes("SOGEC")) return "SOGEC";
+  if(s.includes("HIGH")) return "HIGH CO DATA";
+  if(s.includes("SCAN")) return "SCANCOUPON";
+  return "INCONNU";
+}
+
 function loadEntries(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -272,7 +296,7 @@ function bootTRSeed(){
 function trDuplicateMap(rows){
   const counts = new Map();
   rows.forEach(r=>{
-    const key = `${(r.provider||"").toUpperCase()}|${(r.ref||"").trim().toUpperCase()}|${r.date||""}|${Number(r.amount||0).toFixed(2)}`;
+    const key = `${(r.provider||"").toUpperCase()}|${normalizeRef(r.ref)}|${normalizeDate(r.date)}|${Number(r.amount||0).toFixed(2)}`;
     counts.set(key, (counts.get(key)||0)+1);
   });
   return counts;
@@ -288,7 +312,7 @@ function renderTR(){
 
   const dupMap = trDuplicateMap(rows);
   el.trTableBody.innerHTML = rows.map(r=>{
-    const key = `${(r.provider||"").toUpperCase()}|${(r.ref||"").trim().toUpperCase()}|${r.date||""}|${Number(r.amount||0).toFixed(2)}`;
+    const key = `${(r.provider||"").toUpperCase()}|${normalizeRef(r.ref)}|${normalizeDate(r.date)}|${Number(r.amount||0).toFixed(2)}`;
     const isDup = (dupMap.get(key)||0) > 1;
     return `<tr>
       <td>${r.date||"-"}</td>
@@ -313,7 +337,7 @@ function exportTRCsv(){
   const head = ["date","provider","ref","amount","source","duplicate_flag"];
   const dupMap = trDuplicateMap(rows);
   const body = rows.map(r=>{
-    const key = `${(r.provider||"").toUpperCase()}|${(r.ref||"").trim().toUpperCase()}|${r.date||""}|${Number(r.amount||0).toFixed(2)}`;
+    const key = `${(r.provider||"").toUpperCase()}|${normalizeRef(r.ref)}|${normalizeDate(r.date)}|${Number(r.amount||0).toFixed(2)}`;
     return [r.date,r.provider,r.ref,r.amount,r.source,(dupMap.get(key)||0)>1?"DUPLICATE":"OK"];
   });
   const csv=[head.join(","),...body.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","))].join("\n");
@@ -376,11 +400,13 @@ el.form.addEventListener("submit", (e) => {
 el.trForm.addEventListener("submit", (e)=>{
   e.preventDefault();
   const rows = loadEntries(KEYS.tr);
+  const ref = String(el.trRef.value||"").trim();
+  const autoProvider = detectProviderFromText(ref);
   rows.push({
     id: `tr-${Date.now()}-${Math.floor(Math.random()*1000)}`,
     date: el.trDate.value,
-    provider: el.trProvider.value,
-    ref: String(el.trRef.value||"").trim(),
+    provider: autoProvider!=="INCONNU" ? autoProvider : el.trProvider.value,
+    ref,
     amount: parseNum(el.trAmount.value),
     source: String(el.trSource.value||"").trim() || "Saisie manuelle"
   });
@@ -390,6 +416,53 @@ el.trForm.addEventListener("submit", (e)=>{
   el.trSource.value = "Saisie manuelle";
   renderTR();
 });
+
+el.trRef.addEventListener("input", ()=>{
+  const p = detectProviderFromText(el.trRef.value);
+  if(p!=="INCONNU") el.trProvider.value = p;
+});
+
+function removeDuplicateTRKeepFirst(){
+  const rows = loadEntries(KEYS.tr).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const seen = new Set();
+  const kept = [];
+  for(const r of rows){
+    const key = `${(r.provider||"").toUpperCase()}|${normalizeRef(r.ref)}|${normalizeDate(r.date)}|${Number(r.amount||0).toFixed(2)}`;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    kept.push(r);
+  }
+  saveEntries(KEYS.tr, kept);
+  renderTR();
+}
+
+function parseTrRowsFromWorkbook(file, arrayBuffer){
+  const wb = XLSX.read(arrayBuffer, { type:"array" });
+  const out = [];
+  for(const sh of wb.SheetNames){
+    const ws = wb.Sheets[sh];
+    const json = XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+    for(const row of json){
+      if(!Array.isArray(row)) continue;
+      const cells = row.map(c=>String(c||"").trim());
+      const upper = cells.join(" ").toUpperCase();
+      const provider = detectProviderFromText(upper);
+      if(provider==="INCONNU") continue;
+      const amountCell = row.find(c=>typeof c==="number" && c>0 && c<100000);
+      if(!amountCell) continue;
+      const dateCell = row.find(c=>c instanceof Date || /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(String(c||"").trim()) || /^\d{4}-\d{2}-\d{2}$/.test(String(c||"").trim()));
+      out.push({
+        id:`imp-${Date.now()}-${Math.floor(Math.random()*1e6)}`,
+        date: dateCell instanceof Date ? `${dateCell.getFullYear()}-${String(dateCell.getMonth()+1).padStart(2,"0")}-${String(dateCell.getDate()).padStart(2,"0")}` : normalizeDate(dateCell || ""),
+        provider,
+        ref: String(cells.find(c=>/[A-Z0-9]{5,}/.test(c.toUpperCase())) || ""),
+        amount: parseNum(amountCell),
+        source: `Import ${file.name}`
+      });
+    }
+  }
+  return out.filter(r=>r.amount>0);
+}
 
 el.depForm.addEventListener("submit", (e)=>{
   e.preventDefault();
@@ -419,6 +492,24 @@ el.tabs.forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 el.monthPicker.addEventListener("change", rerender);
 el.exportBtn.addEventListener("click", () => exportCsv(el.monthPicker.value || currentMonth()));
 el.trExportBtn.addEventListener("click", exportTRCsv);
+document.getElementById("trKeepFirstBtn").addEventListener("click", removeDuplicateTRKeepFirst);
+document.getElementById("trImportXlsx").addEventListener("change", async (e)=>{
+  const f=e.target.files?.[0];
+  if(!f) return;
+  try{
+    const buf=await f.arrayBuffer();
+    const imported=parseTrRowsFromWorkbook(f, buf);
+    if(!imported.length){ alert("Aucune ligne TR exploitable detectee dans ce fichier."); return; }
+    const rows=loadEntries(KEYS.tr);
+    saveEntries(KEYS.tr, rows.concat(imported));
+    renderTR();
+    alert(`Import TR termine: ${imported.length} ligne(s).`);
+  }catch(_){
+    alert("Import impossible: fichier non lisible.");
+  }finally{
+    e.target.value="";
+  }
+});
 
 el.date.value = todayISO();
 el.monthPicker.value = currentMonth();
