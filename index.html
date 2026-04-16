@@ -33,6 +33,7 @@
         <form id="monthConfigForm" class="grid grid-4">
           <label>Solde debut de mois (fin mois precedent)
             <input id="cfgSoldeDebut" type="number" step="0.01" placeholder="0.00">
+            <button type="button" id="cfgSoldeReprendreBtn" class="btn-suggestion" style="display:none"></button>
           </label>
           <label>CA Budget mensuel
             <input id="cfgCaBudget" type="number" step="0.01" placeholder="0.00">
@@ -94,6 +95,15 @@
               <input id="debit4Label" type="text" placeholder="Libelle libre..." tabindex="10" class="label-input">
               <input id="debit4Amount" type="number" step="0.01" min="0" value="0" tabindex="11" placeholder="0.00">
             </label>
+          </div>
+
+          <!-- Prélèvements additionnels -->
+          <div class="form-section-label col-debit-bg">Prelevements additionnels (plusieurs sur un meme jour)</div>
+          <div class="dl-form-row">
+            <input id="dlDate" type="date">
+            <input id="dlLabel" type="text" placeholder="Ex: Facture EDF, Loyer, Fournisseur X..." tabindex="16">
+            <input id="dlAmount" type="number" step="0.01" min="0" placeholder="0.00" tabindex="17">
+            <button id="dlAddBtn" type="button" tabindex="18">+ Ajouter</button>
           </div>
 
           <!-- Note + Submit -->

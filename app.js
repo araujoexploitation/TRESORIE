@@ -9,7 +9,8 @@ const KEYS = {
   catEntries: "tresorerie_category_entries_v1",
   dep: "tresorerie_depenses_entries_v1",
   cp: "tresorerie_coupons_entries_v1",
-  dm: "tresorerie_demarque_entries_v1"
+  dm: "tresorerie_demarque_entries_v1",
+  debitLines: "tresorerie_debit_lines_v1"
 };
 
 const TR_SEED = [
@@ -82,6 +83,7 @@ const el = {
   monthConfigForm: document.getElementById("monthConfigForm"),
   monthConfigLabel: document.getElementById("monthConfigLabel"),
   cfgSoldeDebut: document.getElementById("cfgSoldeDebut"),
+  cfgSoldeReprendreBtn: document.getElementById("cfgSoldeReprendreBtn"),
   cfgCaBudget: document.getElementById("cfgCaBudget"),
   cfgCaPrev: document.getElementById("cfgCaPrev"),
   cfgTendance: document.getElementById("cfgTendance"),
@@ -144,6 +146,11 @@ const el = {
   cpPaidDate: document.getElementById("cpPaidDate"),
   cpPaid: document.getElementById("cpPaid"),
   cpTableBody: document.getElementById("cpTableBody"),
+  // Prélèvements additionnels
+  dlDate:   document.getElementById("dlDate"),
+  dlLabel:  document.getElementById("dlLabel"),
+  dlAmount: document.getElementById("dlAmount"),
+  dlAddBtn: document.getElementById("dlAddBtn"),
   // Demarque
   dmForm: document.getElementById("dmForm"),
   dmWeek: document.getElementById("dmWeek"),
@@ -262,6 +269,19 @@ function updateDefaults(entry) {
   saveConfig(cfg);
 }
 
+function getPrevMonthKey(monthKey) {
+  const [y, m] = monthKey.split("-").map(Number);
+  if (m === 1) return `${y - 1}-12`;
+  return `${y}-${String(m - 1).padStart(2, "0")}`;
+}
+
+function getPrevMonthEndingSolde(monthKey) {
+  const prevKey  = getPrevMonthKey(monthKey);
+  const prevRows = getMonthRows(prevKey);
+  if (!prevRows.length) return null;
+  return prevRows[prevRows.length - 1].soldeCumulatif;
+}
+
 function loadMonthConfigIntoForm(monthKey) {
   const cfg = getMonthConfig(monthKey);
   if (el.monthConfigLabel) el.monthConfigLabel.textContent = monthKey;
@@ -269,6 +289,22 @@ function loadMonthConfigIntoForm(monthKey) {
   if (el.cfgCaBudget)   el.cfgCaBudget.value   = cfg.caBudget || "";
   if (el.cfgCaPrev)     el.cfgCaPrev.value      = cfg.caPrev || "";
   if (el.cfgTendance)   el.cfgTendance.value    = cfg.tendance || "";
+
+  // Suggestion : reprendre solde fin mois précédent
+  const btn = document.getElementById("cfgSoldeReprendreBtn");
+  if (!btn) return;
+  const prevSolde = getPrevMonthEndingSolde(monthKey);
+  if (prevSolde !== null && !parseNum(cfg.soldeDebutMois)) {
+    btn.textContent = `\u21e6 Reprendre fin ${getPrevMonthKey(monthKey)} : ${eur(prevSolde)}`;
+    btn.style.display = "block";
+    btn.dataset.solde = prevSolde;
+  } else if (prevSolde !== null) {
+    btn.textContent = `Fin ${getPrevMonthKey(monthKey)} : ${eur(prevSolde)}`;
+    btn.style.display = "block";
+    btn.dataset.solde = prevSolde;
+  } else {
+    btn.style.display = "none";
+  }
 }
 
 function prefillFormDefaults() {
@@ -313,12 +349,13 @@ function migrateV1toV2() {
 
 // ─── TRESO v2 ─────────────────────────────────────────────────────────────────
 
-function computeRow(x) {
+function computeRow(x, debitLines) {
+  const linesTotal   = (debitLines || []).reduce((s, l) => s + parseNum(l.amount), 0);
   const totalDebits  = parseNum(x.debit1Amount) + parseNum(x.debit2Amount)
-                     + parseNum(x.debit3Amount)  + parseNum(x.debit4Amount);
+                     + parseNum(x.debit3Amount)  + parseNum(x.debit4Amount) + linesTotal;
   const totalCredits = parseNum(x.ca) + parseNum(x.credit2Amount) + parseNum(x.credit3Amount);
   const netJour      = totalCredits - totalDebits;
-  return { ...x, totalDebits, totalCredits, netJour };
+  return { ...x, totalDebits, totalCredits, netJour, debitLines: debitLines || [], linesTotal };
 }
 
 function upsertEntry(entry) {
@@ -333,17 +370,25 @@ function upsertEntry(entry) {
 function deleteEntry(date) {
   const rows = loadEntries(KEYS.tresoV2).filter(r => r.date !== date);
   saveEntries(KEYS.tresoV2, rows);
+  const catRows = loadEntries(KEYS.catEntries).filter(e =>
+    !["D1","D2","D3","D4"].some(p => e.sourceRef === `${p}-${date}`)
+  );
+  saveEntries(KEYS.catEntries, catRows);
 }
 
 function getMonthRows(monthKey) {
   const cfg = getMonthConfig(monthKey);
   let solde = parseNum(cfg.soldeDebutMois);
 
+  const allLines = loadEntries(KEYS.debitLines)
+    .filter(l => String(l.date || "").startsWith(monthKey));
+
   return loadEntries(KEYS.tresoV2)
     .filter(r => String(r.date || "").startsWith(monthKey))
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(r => {
-      const computed = computeRow(r);
+      const dateLines = allLines.filter(l => l.date === r.date);
+      const computed  = computeRow(r, dateLines);
       solde += computed.netJour;
       return { ...computed, soldeCumulatif: solde };
     });
@@ -386,6 +431,8 @@ function renderKpis(monthKey) {
 function renderTable(monthKey) {
   const rows = getMonthRows(monthKey);
   const d    = getDefaults();
+  const todayISO = new Date().toISOString().slice(0, 10);
+  let dividerInserted = false;
 
   const setTh = (id, txt) => { const th = document.getElementById(id); if (th) th.textContent = txt; };
   setTh("th-debit1",  d.debit1Label  || "Direct");
@@ -395,29 +442,60 @@ function renderTable(monthKey) {
   setTh("th-credit2", d.credit2Label || "Credit+");
   setTh("th-credit3", d.credit3Label || "Depot");
 
+  const E = (field, date, type) => `data-field="${field}" data-date="${date}" data-type="${type}"`;
   el.tableBody.innerHTML = rows.map(r => {
+    const isFuture   = r.date > todayISO;
     const soldeClass = r.soldeCumulatif < 0 ? "danger" : r.soldeCumulatif < 2000 ? "warn" : "ok";
     const netClass   = r.netJour < 0 ? "danger" : r.netJour > 0 ? "ok" : "";
     const shortNote  = r.note ? (r.note.length > 28 ? r.note.substring(0, 28) + "\u2026" : r.note) : "-";
-    return `<tr>
+    const hasLines   = r.debitLines && r.debitLines.length > 0;
+    const rowClass   = [hasLines ? "has-lines" : "", isFuture ? "preview-row" : ""].filter(Boolean).join(" ");
+
+    let divider = "";
+    if (isFuture && !dividerInserted) {
+      dividerInserted = true;
+      divider = `<tr class="today-divider"><td colspan="13">\u25bc Projections</td></tr>`;
+    }
+
+    const mainRow = `<tr class="${rowClass}">
       <td><strong>${r.date}</strong></td>
-      <td class="col-debit">${r.debit1Amount ? eur(r.debit1Amount) : "-"}</td>
-      <td class="col-debit">${r.debit2Amount ? eur(r.debit2Amount) : "-"}</td>
-      <td class="col-debit">${r.debit3Amount ? eur(r.debit3Amount) : "-"}</td>
-      <td class="col-debit">${r.debit4Amount ? eur(r.debit4Amount) : "-"}</td>
-      <td class="col-credit"><strong>${eur(r.ca)}</strong></td>
-      <td class="col-credit muted-val">${r.caN1 ? eur(r.caN1) : "-"}</td>
-      <td class="col-credit">${r.credit2Amount ? eur(r.credit2Amount) : "-"}</td>
-      <td class="col-credit">${r.credit3Amount ? eur(r.credit3Amount) : "-"}</td>
+      <td class="col-debit editable" ${E("debit1Amount", r.date, "number")}>${r.debit1Amount ? eur(r.debit1Amount) : "-"}</td>
+      <td class="col-debit editable" ${E("debit2Amount", r.date, "number")}>${r.debit2Amount ? eur(r.debit2Amount) : "-"}</td>
+      <td class="col-debit editable" ${E("debit3Amount", r.date, "number")}>${r.debit3Amount ? eur(r.debit3Amount) : "-"}</td>
+      <td class="col-debit editable" ${E("debit4Amount", r.date, "number")}>${r.debit4Amount ? eur(r.debit4Amount) : "-"}</td>
+      <td class="col-credit editable" ${E("ca", r.date, "number")}><strong>${eur(r.ca)}</strong></td>
+      <td class="col-credit muted-val editable" ${E("caN1", r.date, "number")}>${r.caN1 ? eur(r.caN1) : "-"}</td>
+      <td class="col-credit editable" ${E("credit2Amount", r.date, "number")}>${r.credit2Amount ? eur(r.credit2Amount) : "-"}</td>
+      <td class="col-credit editable" ${E("credit3Amount", r.date, "number")}>${r.credit3Amount ? eur(r.credit3Amount) : "-"}</td>
       <td class="col-solde ${soldeClass}"><strong>${eur(r.soldeCumulatif)}</strong></td>
       <td class="${netClass}" style="font-size:11px;white-space:nowrap">${r.netJour !== 0 ? (r.netJour > 0 ? "+" : "") + eur(r.netJour) : "-"}</td>
-      <td class="note-cell" title="${r.note || ""}">${shortNote}</td>
+      <td class="note-cell editable" ${E("note", r.date, "text")} title="${r.note || ""}">${shortNote}</td>
       <td><button data-del="${r.date}" type="button">\u00d7</button></td>
     </tr>`;
+
+    const subRows = (r.debitLines || []).map(l => `<tr class="debit-line-row${isFuture ? " preview-row" : ""}">
+      <td class="dl-indent">\u2514</td>
+      <td colspan="8" class="col-debit dl-label-cell">${l.label || "Prelev."}</td>
+      <td class="col-debit dl-amount-cell">\u2212 ${eur(l.amount)}</td>
+      <td></td><td></td>
+      <td><button type="button" data-deldl="${l.id}">\u00d7</button></td>
+    </tr>`).join("");
+
+    return divider + mainRow + subRows;
   }).join("");
 
   el.tableBody.querySelectorAll("button[data-del]").forEach(b => {
     b.addEventListener("click", () => { deleteEntry(b.dataset.del); rerender(); });
+  });
+
+  // Supprimer une ligne additionnelle
+  el.tableBody.querySelectorAll("button[data-deldl]").forEach(b => {
+    b.addEventListener("click", () => {
+      const id = b.dataset.deldl;
+      saveEntries(KEYS.debitLines, loadEntries(KEYS.debitLines).filter(l => l.id !== id));
+      saveEntries(KEYS.catEntries, loadEntries(KEYS.catEntries).filter(e => e.sourceRef !== `DL-${id}`));
+      rerender();
+    });
   });
 }
 
@@ -780,20 +858,26 @@ el.form.addEventListener("submit", e => {
   upsertEntry(entry);
   updateDefaults(entry);
 
-  // Auto-catégorie com CB
-  if (parseNum(entry.debit2Amount) > 0 && d2l.toLowerCase().includes("cb")) {
-    const category = "Commissions CB";
-    ensureCategory(category);
+  // Auto-catégorisation de tous les débits non nuls
+  [
+    { ref: "D1", lbl: d1l, amt: entry.debit1Amount },
+    { ref: "D2", lbl: d2l, amt: entry.debit2Amount },
+    { ref: "D3", lbl: d3l, amt: entry.debit3Amount },
+    { ref: "D4", lbl: d4l, amt: entry.debit4Amount }
+  ].forEach(d => {
+    if (parseNum(d.amt) <= 0) return;
+    const cat = suggestCategory(d.lbl);
+    ensureCategory(cat);
     upsertAutoCategoryEntry({
-      id: `cat-cb-${entry.date}`,
-      sourceRef: `CB-${entry.date}`,
+      id: `cat-${d.ref}-${entry.date}`,
+      sourceRef: `${d.ref}-${entry.date}`,
       date: entry.date,
-      category,
-      source: "Commission CB",
-      amount: parseNum(entry.debit2Amount),
-      label: "Commission CB journaliere"
+      category: cat,
+      source: "Debit journal",
+      amount: parseNum(d.amt),
+      label: d.lbl || d.ref
     });
-  }
+  });
 
   // Reset form
   el.form.reset();
@@ -801,6 +885,14 @@ el.form.addEventListener("submit", e => {
   prefillFormDefaults();
   el.ca.focus();
   rerender();
+});
+
+// Bouton "Reprendre solde fin mois précédent"
+document.getElementById("cfgSoldeReprendreBtn").addEventListener("click", () => {
+  const btn = document.getElementById("cfgSoldeReprendreBtn");
+  const solde = parseNum(btn.dataset.solde);
+  el.cfgSoldeDebut.value = solde;
+  el.cfgSoldeDebut.focus();
 });
 
 // Config mois
@@ -1006,6 +1098,67 @@ el.echTableBody.addEventListener("click", e => {
   renderEcheances();
 });
 
+// Prélèvements additionnels (plusieurs par jour)
+el.dlAddBtn.addEventListener("click", () => {
+  const date   = el.dlDate.value;
+  const label  = el.dlLabel.value.trim();
+  const amount = parseNum(el.dlAmount.value);
+  if (!date || !label || amount <= 0) { el.dlLabel.focus(); return; }
+  const id    = `dl-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const lines = loadEntries(KEYS.debitLines);
+  lines.push({ id, date, label, amount });
+  saveEntries(KEYS.debitLines, lines);
+  // Auto-catégorisation
+  const cat = suggestCategory(label);
+  ensureCategory(cat);
+  upsertAutoCategoryEntry({ id: `cat-dl-${id}`, sourceRef: `DL-${id}`, date, category: cat, source: "Prelevement", amount, label });
+  el.dlLabel.value  = "";
+  el.dlAmount.value = "";
+  el.dlLabel.focus();
+  rerender();
+});
+el.dlLabel.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); el.dlAddBtn.click(); } });
+el.dlAmount.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); el.dlAddBtn.click(); } });
+
+// Édition inline du journal mensuel — clic sur une cellule
+el.tableBody.addEventListener("click", e => {
+  const td = e.target.closest("td[data-field]");
+  if (!td || td.querySelector("input")) return; // déjà en édition
+
+  const field = td.dataset.field;
+  const date  = td.dataset.date;
+  const type  = td.dataset.type || "text";
+
+  const rows = loadEntries(KEYS.tresoV2);
+  const row  = rows.find(r => r.date === date);
+  if (!row) return;
+
+  const input    = document.createElement("input");
+  input.type     = type;
+  if (type === "number") input.step = "0.01";
+  input.value    = type === "number" ? parseNum(row[field]) || 0 : (row[field] || "");
+  input.className = "cell-edit-input";
+
+  td.textContent = "";
+  td.appendChild(input);
+  input.focus();
+  if (type === "number") input.select();
+
+  const save = () => {
+    const newVal   = type === "number" ? parseNum(input.value) : String(input.value).trim();
+    const rowsAll  = loadEntries(KEYS.tresoV2);
+    const i        = rowsAll.findIndex(r => r.date === date);
+    if (i >= 0) { rowsAll[i][field] = newVal; saveEntries(KEYS.tresoV2, rowsAll); }
+    rerender();
+  };
+
+  input.addEventListener("blur", save);
+  input.addEventListener("keydown", ev => {
+    if (ev.key === "Enter")  { ev.preventDefault(); input.blur(); }
+    if (ev.key === "Escape") { rerender(); }
+  });
+});
+
 // Navigation
 el.tabs.forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
 el.monthPicker.addEventListener("change", rerender);
@@ -1032,6 +1185,7 @@ document.getElementById("trImportXlsx").addEventListener("change", async e => {
 
 // ─── INITIALISATION ───────────────────────────────────────────────────────────
 
+el.dlDate.value          = todayISO();
 el.date.value            = todayISO();
 el.monthPicker.value     = currentMonth();
 el.cashDepositDate.value = todayISO();

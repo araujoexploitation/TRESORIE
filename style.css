@@ -46,6 +46,8 @@ button:hover{opacity:.92}
 /* ── Config mois ─────────────────────────────────────────────────────────── */
 #month-config-card{border-left:4px solid #0c4a8a}
 #monthConfigForm{grid-template-columns:repeat(4,minmax(0,1fr))}
+.btn-suggestion{background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc;font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;text-align:left;margin-top:2px}
+.btn-suggestion:hover{background:#bae6fd}
 
 /* ── KPIs ────────────────────────────────────────────────────────────────── */
 .metrics .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -78,6 +80,26 @@ thead .col-debit{background:#fed7aa!important}
 thead .col-credit{background:#bbf7d0!important}
 thead .col-solde{background:#bfdbfe!important}
 
+/* Mini-formulaire prélèvements additionnels */
+.dl-form-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dl-form-row input[type="date"]{flex:0 0 140px}
+.dl-form-row input[type="text"]{flex:1;min-width:160px}
+.dl-form-row input[type="number"]{flex:0 0 110px}
+.dl-form-row button{flex:0 0 auto;background:#9a3412;white-space:nowrap}
+.dl-form-row button:hover{opacity:.9}
+
+/* Sous-rangées prélèvements */
+tr.has-lines td{border-bottom:none}
+tr.debit-line-row td{border-bottom:1px solid #e2e8f0;padding:4px 8px;font-size:12px;background:#fff7ed}
+.dl-indent{color:#94a3b8;font-size:14px;text-align:center;width:30px}
+.dl-label-cell{color:#92400e;font-style:italic}
+.dl-amount-cell{color:#b91c1c;font-weight:700;text-align:right}
+
+/* Cellules éditables inline */
+td.editable{cursor:pointer;position:relative}
+td.editable:hover{background:rgba(12,74,138,.07)!important;outline:2px solid #93c5fd;outline-offset:-1px}
+.cell-edit-input{width:100%;border:2px solid #0c4a8a;border-radius:4px;padding:4px 6px;font-size:13px;background:#fff;outline:none;box-shadow:0 0 0 3px rgba(12,74,138,.15)}
+
 /* Bouton supprimer compact */
 button[data-del]{background:#fee2e2;color:#b91c1c;border:none;padding:3px 9px;font-size:15px;border-radius:5px;font-weight:700;line-height:1}
 button[data-del]:hover{background:#fca5a5}
@@ -88,6 +110,14 @@ button[data-del]:hover{background:#fca5a5}
 .tag.debit{background:#fff7ed;border-color:#fdba74;color:#9a3412}
 .tag.credit{background:#f0fdf4;border-color:#86efac;color:#166534}
 .tag.solde{background:#eff6ff;border-color:#93c5fd;color:#1e3a8a}
+
+/* ── Lignes projetées (date future) ─────────────────────────────────────── */
+tr.preview-row td{background:#faf5ff!important;font-style:italic;color:#6b21a8}
+tr.preview-row .col-debit{background:#f3e8ff!important}
+tr.preview-row .col-credit{background:#f0fdf4!important;opacity:.85}
+tr.preview-row .col-solde{background:#ede9fe!important}
+tr.preview-row td:first-child::after{content:" PREV";font-size:9px;color:#9333ea;font-weight:700;vertical-align:super;margin-left:3px}
+tr.today-divider td{background:#ede9fe;color:#7c3aed;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:5px 8px;border-top:2px solid #c4b5fd;border-bottom:2px solid #c4b5fd;text-align:center}
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width:1000px){
