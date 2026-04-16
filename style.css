@@ -1,5 +1,5 @@
 *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-body{margin:0;background:#f6f8fc;color:#0f172a}
+body{margin:0;background:#f1f4f9;color:#0f172a}
 .app{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:14px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap}
 .tab{background:#e2e8f0;color:#0f172a;border:1px solid #cbd5e1}
@@ -8,11 +8,11 @@ body{margin:0;background:#f6f8fc;color:#0f172a}
 .panel.active{display:grid}
 .top h1{margin:0;font-size:28px}
 .top p{margin:4px 0 0;color:#475569}
-.card{background:#fff;border:1px solid #dbe4f0;border-radius:12px;padding:14px}
+.card{background:#fff;border:1px solid #dbe4f0;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.04)}
 h2{margin:0 0 10px;font-size:18px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 label{display:flex;flex-direction:column;font-size:13px;color:#334155;gap:5px}
-input,button{padding:10px;border-radius:8px;border:1px solid #cbd5e1}
+input,button,select{padding:10px;border-radius:8px;border:1px solid #cbd5e1}
 button{cursor:pointer;background:#0c4a8a;color:#fff;border:none;font-weight:600}
 button:hover{opacity:.92}
 .wide{grid-column:1/-1}
@@ -29,6 +29,19 @@ th{background:#f8fafc;font-size:12px;color:#475569}
 .danger{color:#b91c1c;font-weight:600}
 .ok{color:#166534;font-weight:600}
 ul{margin:0;padding-left:18px;color:#334155}
+.excel-banner{background:linear-gradient(135deg,#fefce8,#eef2ff)}
+.excel-title{font-weight:700;margin-bottom:8px}
+.excel-legend{display:flex;gap:8px;flex-wrap:wrap}
+.tag{display:inline-block;font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid transparent}
+.tag.debit{background:#fff7ed;border-color:#fdba74;color:#9a3412}
+.tag.credit{background:#f0fdf4;border-color:#86efac;color:#166534}
+.tag.solde{background:#eff6ff;border-color:#93c5fd;color:#1e3a8a}
+.col-debit{background:#fff7ed}
+.col-credit{background:#f0fdf4}
+.col-solde{background:#eff6ff;font-weight:600}
+thead .col-debit{background:#fed7aa!important}
+thead .col-credit{background:#bbf7d0!important}
+thead .col-solde{background:#bfdbfe!important}
 @media (max-width:900px){
   .grid,.metrics .kpis{grid-template-columns:1fr}
 }
