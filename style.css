@@ -1,47 +1,104 @@
 *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 body{margin:0;background:#f1f4f9;color:#0f172a}
-.app{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:14px}
+.app{max-width:1200px;margin:0 auto;padding:16px;display:grid;gap:14px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap}
-.tab{background:#e2e8f0;color:#0f172a;border:1px solid #cbd5e1}
+.tab{background:#e2e8f0;color:#0f172a;border:1px solid #cbd5e1;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500}
 .tab.active{background:#0c4a8a;color:#fff}
+.tab:hover:not(.active){background:#cbd5e1}
 .panel{display:none;gap:14px}
 .panel.active{display:grid}
 .top h1{margin:0;font-size:28px}
 .top p{margin:4px 0 0;color:#475569}
 .card{background:#fff;border:1px solid #dbe4f0;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.04)}
 h2{margin:0 0 10px;font-size:18px}
+
+/* ── Grilles formulaires ─────────────────────────────────────────────────── */
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-label{display:flex;flex-direction:column;font-size:13px;color:#334155;gap:5px}
-input,button,select{padding:10px;border-radius:8px;border:1px solid #cbd5e1}
+.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+label{display:flex;flex-direction:column;font-size:13px;color:#334155;gap:4px}
+input,button,select{padding:9px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px}
 button{cursor:pointer;background:#0c4a8a;color:#fff;border:none;font-weight:600}
 button:hover{opacity:.92}
 .wide{grid-column:1/-1}
 .muted{color:#64748b;font-size:13px}
-.metrics .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+
+/* ── Formulaire saisie du jour ───────────────────────────────────────────── */
+#entry-form{display:flex;flex-direction:column;gap:10px}
+.saisie-date-row{display:flex;align-items:flex-end;gap:10px}
+.label-date{flex:0 0 180px}
+.saisie-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.saisie-footer{display:flex;gap:10px;align-items:flex-end}
+.label-note{flex:1}
+.btn-submit{flex:0 0 220px;padding:10px;font-size:15px;border-radius:8px;white-space:nowrap}
+.input-big{font-size:16px;font-weight:700}
+
+/* Champs libellé mémorisé */
+.label-with-tag{display:flex;flex-direction:column;gap:4px}
+.label-input{font-size:11px;padding:5px 8px;color:#64748b;background:#f8fafc;border:1px dashed #94a3b8;border-radius:6px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.label-input:focus{border-style:solid;border-color:#0c4a8a;background:#fff;outline:none}
+.label-input::placeholder{text-transform:none;font-weight:400}
+
+/* Séparateurs de section formulaire */
+.form-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#475569;padding:5px 8px;border-radius:6px;margin-top:2px}
+.col-credit-bg{background:#dcfce7;color:#166534}
+.col-debit-bg{background:#ffedd5;color:#9a3412}
+
+/* ── Config mois ─────────────────────────────────────────────────────────── */
+#month-config-card{border-left:4px solid #0c4a8a}
+#monthConfigForm{grid-template-columns:repeat(4,minmax(0,1fr))}
+
+/* ── KPIs ────────────────────────────────────────────────────────────────── */
+.metrics .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px}
 .kpi .v{font-size:20px;font-weight:700}
-.kpi .l{font-size:12px;color:#64748b}
+.kpi .l{font-size:12px;color:#64748b;margin-top:2px}
+
+/* KPI héro – solde en banque */
+.kpi-hero{grid-column:1/-1;background:#f0f9ff;border:2px solid #0c4a8a;border-radius:12px;padding:16px 20px}
+.kpi-hero .v{font-size:38px;font-weight:800}
+.kpi-hero .l{font-size:13px;color:#0c4a8a;font-weight:600;margin-top:4px}
+
+/* ── Couleurs statut ─────────────────────────────────────────────────────── */
+.danger{color:#b91c1c;font-weight:600}
+.ok{color:#166534;font-weight:600}
+.warn{color:#b45309;font-weight:600}
+
+/* ── Tableau mensuel ─────────────────────────────────────────────────────── */
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .table-wrap{overflow:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left;white-space:nowrap}
-th{background:#f8fafc;font-size:12px;color:#475569}
-.danger{color:#b91c1c;font-weight:600}
-.ok{color:#166534;font-weight:600}
-ul{margin:0;padding-left:18px;color:#334155}
-.excel-banner{background:linear-gradient(135deg,#fefce8,#eef2ff)}
-.excel-title{font-weight:700;margin-bottom:8px}
-.excel-legend{display:flex;gap:8px;flex-wrap:wrap}
-.tag{display:inline-block;font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid transparent}
-.tag.debit{background:#fff7ed;border-color:#fdba74;color:#9a3412}
-.tag.credit{background:#f0fdf4;border-color:#86efac;color:#166534}
-.tag.solde{background:#eff6ff;border-color:#93c5fd;color:#1e3a8a}
+th,td{border-bottom:1px solid #e2e8f0;padding:7px 8px;text-align:left;white-space:nowrap}
+th{background:#f8fafc;font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .col-debit{background:#fff7ed}
 .col-credit{background:#f0fdf4}
-.col-solde{background:#eff6ff;font-weight:600}
+.col-solde{background:#eff6ff;font-weight:700;font-size:14px;min-width:105px}
+.muted-val{color:#94a3b8}
+.note-cell{max-width:160px;overflow:hidden;text-overflow:ellipsis;color:#475569}
 thead .col-debit{background:#fed7aa!important}
 thead .col-credit{background:#bbf7d0!important}
 thead .col-solde{background:#bfdbfe!important}
-@media (max-width:900px){
-  .grid,.metrics .kpis{grid-template-columns:1fr}
+
+/* Bouton supprimer compact */
+button[data-del]{background:#fee2e2;color:#b91c1c;border:none;padding:3px 9px;font-size:15px;border-radius:5px;font-weight:700;line-height:1}
+button[data-del]:hover{background:#fca5a5}
+
+/* Légende */
+.excel-legend{display:flex;gap:8px;flex-wrap:wrap}
+.tag{display:inline-block;font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid transparent}
+.tag.debit{background:#fff7ed;border-color:#fdba74;color:#9a3412}
+.tag.credit{background:#f0fdf4;border-color:#86efac;color:#166534}
+.tag.solde{background:#eff6ff;border-color:#93c5fd;color:#1e3a8a}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width:1000px){
+  .saisie-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #monthConfigForm{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .metrics .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:700px){
+  .saisie-grid,.grid,.grid-4,#monthConfigForm{grid-template-columns:1fr}
+  .saisie-footer{flex-direction:column}
+  .btn-submit{width:100%}
+  .kpi-hero .v{font-size:28px}
+  .metrics .kpis{grid-template-columns:1fr}
 }

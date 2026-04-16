@@ -10,8 +10,8 @@
   <main class="app">
     <header class="top">
       <h1>Suivi Tresorerie</h1>
-      <p>CA, ecarts d'encaissement et disponibilite reellement en banque</p>
-      <p id="app-version" class="muted">Version: TR-2026.04.16-01</p>
+      <p>CA, solde cumulatif et disponibilite reellement en banque</p>
+      <p id="app-version" class="muted">Version: TR-2026.04.16-02</p>
     </header>
 
     <nav class="tabs">
@@ -24,57 +24,108 @@
       <button class="tab" data-tab="demarque">Demarque</button>
     </nav>
 
+    <!-- ═══════════════════════════════════════════════════════ TRESO ══ -->
     <section class="panel active" id="panel-treso">
-      <section class="card excel-banner">
-        <div class="excel-title">Vue type tableau de suivi (inspiree Excel)</div>
-        <div class="excel-legend">
-          <span class="tag debit">Debits / sorties</span>
-          <span class="tag credit">Credits / entrees</span>
-          <span class="tag solde">Solde et disponible</span>
-        </div>
-      </section>
-      <section class="card">
-      <h2>Saisie du jour</h2>
-      <form id="entry-form" class="grid">
-        <label>Date
-          <input id="date" type="date" required>
-        </label>
-        <label>CA jour (EUR)
-          <input id="ca" type="number" step="0.01" min="0" required placeholder="0.00">
-        </label>
-        <label>Tickets resto en attente (EUR)
-          <input id="trPending" type="number" step="0.01" min="0" value="0">
-        </label>
-        <label>Especes non versees (EUR)
-          <input id="cashPending" type="number" step="0.01" min="0" value="0">
-        </label>
-        <label>Autres encaissements non credites (EUR)
-          <input id="otherPending" type="number" step="0.01" min="0" value="0">
-        </label>
-        <label>Depenses du jour (EUR)
-          <input id="expenses" type="number" step="0.01" min="0" value="0">
-        </label>
-        <label>Commissions CB du jour (EUR)
-          <input id="cbFees" type="number" step="0.01" min="0" value="0">
-        </label>
-        <label class="wide">Commentaire
-          <input id="note" type="text" maxlength="180" placeholder="Ex: remise espece demain, TR du week-end">
-        </label>
-        <button type="submit">Enregistrer / Mettre a jour</button>
-      </form>
+
+      <!-- Config mensuelle -->
+      <section class="card" id="month-config-card">
+        <h2>Parametres du mois <span id="monthConfigLabel" class="muted"></span></h2>
+        <form id="monthConfigForm" class="grid grid-4">
+          <label>Solde debut de mois (fin mois precedent)
+            <input id="cfgSoldeDebut" type="number" step="0.01" placeholder="0.00">
+          </label>
+          <label>CA Budget mensuel
+            <input id="cfgCaBudget" type="number" step="0.01" placeholder="0.00">
+          </label>
+          <label>CA Previsionnel
+            <input id="cfgCaPrev" type="number" step="0.01" placeholder="0.00">
+          </label>
+          <label>Tendance vs N-1 (%)
+            <input id="cfgTendance" type="number" step="0.1" placeholder="ex: -10">
+          </label>
+          <button type="submit" class="wide">Enregistrer parametres</button>
+        </form>
       </section>
 
+      <!-- Saisie du jour -->
+      <section class="card">
+        <h2>Saisie du jour</h2>
+        <form id="entry-form">
+
+          <div class="saisie-date-row">
+            <label class="label-date">Date
+              <input id="date" type="date" required tabindex="1">
+            </label>
+          </div>
+
+          <!-- CREDITS -->
+          <div class="form-section-label col-credit-bg">Credits / Encaissements</div>
+          <div class="saisie-grid">
+            <label>CA reel du jour (EUR)
+              <input id="ca" type="number" step="0.01" min="0" required placeholder="0.00" tabindex="2" class="input-big">
+            </label>
+            <label>CA N-1 reference (EUR)
+              <input id="caN1" type="number" step="0.01" min="0" placeholder="0.00" tabindex="3">
+            </label>
+            <label>Credit client (EUR)
+              <input id="credit2Amount" type="number" step="0.01" min="0" value="0" tabindex="12">
+            </label>
+            <label>Depot especes (EUR)
+              <input id="credit3Amount" type="number" step="0.01" min="0" value="0" tabindex="13">
+            </label>
+          </div>
+
+          <!-- DEBITS -->
+          <div class="form-section-label col-debit-bg">Debits / Sorties</div>
+          <div class="saisie-grid">
+            <label class="label-with-tag">
+              <input id="debit1Label" type="text" placeholder="Direct" tabindex="4" class="label-input">
+              <input id="debit1Amount" type="number" step="0.01" min="0" value="0" tabindex="5" placeholder="0.00">
+            </label>
+            <label class="label-with-tag">
+              <input id="debit2Label" type="text" placeholder="Com CB" tabindex="6" class="label-input">
+              <input id="debit2Amount" type="number" step="0.01" min="0" value="0" tabindex="7" placeholder="0.00">
+            </label>
+            <label class="label-with-tag">
+              <input id="debit3Label" type="text" placeholder="CRF" tabindex="8" class="label-input">
+              <input id="debit3Amount" type="number" step="0.01" min="0" value="0" tabindex="9" placeholder="0.00">
+            </label>
+            <label class="label-with-tag">
+              <input id="debit4Label" type="text" placeholder="Libelle libre..." tabindex="10" class="label-input">
+              <input id="debit4Amount" type="number" step="0.01" min="0" value="0" tabindex="11" placeholder="0.00">
+            </label>
+          </div>
+
+          <!-- Note + Submit -->
+          <div class="saisie-footer">
+            <label class="label-note">Commentaire
+              <input id="note" type="text" maxlength="180" placeholder="Ex: depot especes demain, paie samedi..." tabindex="14">
+            </label>
+            <button type="submit" class="btn-submit" tabindex="15">Enregistrer / Mettre a jour</button>
+          </div>
+
+        </form>
+      </section>
+
+      <!-- Dashboard -->
       <section class="card metrics">
-        <h2>Dashboard mois courant</h2>
+        <div class="row">
+          <h2>Dashboard</h2>
+          <div>
+            <input id="monthPicker" type="month">
+            <button id="exportBtn" type="button">Exporter CSV</button>
+          </div>
+        </div>
         <div id="kpis" class="kpis"></div>
       </section>
 
+      <!-- Suivi versements especes -->
       <section class="card">
         <h2>Suivi versements especes</h2>
         <form id="cashDepositForm" class="grid">
           <label>Date versement<input id="cashDepositDate" type="date" required></label>
           <label>Montant verse (EUR)<input id="cashDepositAmount" type="number" step="0.01" min="0" required></label>
-          <label class="wide">Note versement<input id="cashDepositNote" type="text" placeholder="Ex: depot semaine 15"></label>
+          <label class="wide">Note<input id="cashDepositNote" type="text" placeholder="Ex: depot semaine 15"></label>
           <button type="submit">Marquer espece versee</button>
         </form>
         <div class="table-wrap" style="margin-top:10px;">
@@ -85,27 +136,29 @@
         </div>
       </section>
 
+      <!-- Journal mensuel -->
       <section class="card">
-        <div class="row">
-          <h2>Journal mensuel</h2>
-          <div>
-            <input id="monthPicker" type="month">
-            <button id="exportBtn" type="button">Exporter CSV</button>
-          </div>
+        <h2>Journal mensuel</h2>
+        <div class="excel-legend" style="margin-bottom:8px;">
+          <span class="tag debit">Debits / sorties</span>
+          <span class="tag credit">Credits / entrees</span>
+          <span class="tag solde">Solde cumulatif</span>
         </div>
         <div class="table-wrap">
           <table id="table">
             <thead>
               <tr>
                 <th>Date</th>
+                <th class="col-debit" id="th-debit1">Direct</th>
+                <th class="col-debit" id="th-debit2">Com CB</th>
+                <th class="col-debit" id="th-debit3">CRF</th>
+                <th class="col-debit" id="th-debit4">Divers</th>
                 <th class="col-credit">CA</th>
-                <th class="col-debit">TR en attente</th>
-                <th class="col-debit">Especes non versees</th>
-                <th class="col-debit">Autres en attente</th>
-                <th class="col-debit">Depenses</th>
-                <th class="col-debit">Commissions CB</th>
-                <th class="col-solde">Ecart total</th>
-                <th class="col-solde">Disponible reel</th>
+                <th class="col-credit">N-1</th>
+                <th class="col-credit" id="th-credit2">Credit+</th>
+                <th class="col-credit" id="th-credit3">Depot</th>
+                <th class="col-solde">Solde J</th>
+                <th>Net J</th>
                 <th>Note</th>
                 <th></th>
               </tr>
@@ -117,6 +170,7 @@
 
     </section>
 
+    <!-- ═══════════════════════════════════════════════════════ TR ══ -->
     <section class="panel" id="panel-tr">
       <section class="card">
         <h2>Ajout TR (avec detection doublon)</h2>
@@ -130,18 +184,10 @@
           </div>
         </div>
         <form id="tr-form" class="grid">
-          <label>Date
-            <input id="trDate" type="date" required>
-          </label>
-          <label>Reference ticket / lot
-            <input id="trRef" type="text" placeholder="Ref bordereau / lot">
-          </label>
-          <label>Montant (EUR)
-            <input id="trAmount" type="number" step="0.01" min="0" required>
-          </label>
-          <label class="wide">Source
-            <input id="trSource" type="text" value="Saisie manuelle">
-          </label>
+          <label>Date<input id="trDate" type="date" required></label>
+          <label>Reference ticket / lot<input id="trRef" type="text" placeholder="Ref bordereau / lot"></label>
+          <label>Montant (EUR)<input id="trAmount" type="number" step="0.01" min="0" required></label>
+          <label class="wide">Source<input id="trSource" type="text" value="Saisie manuelle"></label>
           <button type="submit">Ajouter TR</button>
         </form>
       </section>
@@ -157,9 +203,7 @@
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>Date</th><th>Fournisseur</th><th>Ref</th><th>Montant</th><th>Source</th><th>Doublon</th><th></th>
-              </tr>
+              <tr><th>Date</th><th>Fournisseur</th><th>Ref</th><th>Montant</th><th>Source</th><th>Doublon</th><th></th></tr>
             </thead>
             <tbody id="trTableBody"></tbody>
           </table>
@@ -167,6 +211,7 @@
       </section>
     </section>
 
+    <!-- ═══════════════════════════════════════════════════ ECHEANCES ══ -->
     <section class="panel" id="panel-echeances">
       <section class="card">
         <h2>Nouvelle echeance</h2>
@@ -195,16 +240,22 @@
           <label>Date remboursement prevue<input id="echPlanDate" type="date"></label>
           <label>Montant deja rembourse<input id="echPaidAmount" type="number" step="0.01" min="0" value="0"></label>
           <label>Date remboursement reelle<input id="echPaidDate" type="date"></label>
-          <label class="wide">Plan de remboursement / note<input id="echPlanNote" type="text" placeholder="Ex: 3 x 500 EUR fin de mois"></label>
+          <label class="wide">Plan / note<input id="echPlanNote" type="text" placeholder="Ex: 3 x 500 EUR fin de mois"></label>
           <button type="submit">Ajouter echeance</button>
         </form>
       </section>
       <section class="card">
-        <h2>Impayes en cours (reviennent tant que non regles)</h2>
-        <div class="table-wrap"><table><thead><tr><th>Echeance</th><th>Fournisseur</th><th>Objet</th><th>Total</th><th>Rembourse</th><th>Reste</th><th>Statut</th><th>Regularite</th><th>Plan / date prevue</th><th>Reglement</th><th></th></tr></thead><tbody id="echTableBody"></tbody></table></div>
+        <h2>Impayes en cours</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Echeance</th><th>Fournisseur</th><th>Objet</th><th>Total</th><th>Rembourse</th><th>Reste</th><th>Statut</th><th>Regularite</th><th>Plan / date prevue</th><th>Reglement</th><th></th></tr></thead>
+            <tbody id="echTableBody"></tbody>
+          </table>
+        </div>
       </section>
     </section>
 
+    <!-- ══════════════════════════════════════════════════════ ANALYSE ══ -->
     <section class="panel" id="panel-analyse">
       <section class="card">
         <h2>Categories d'analyse</h2>
@@ -234,14 +285,19 @@
       <section class="card">
         <h2>Totaux par categorie</h2>
         <div id="catTotals" class="kpis"></div>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Categorie</th><th>Source</th><th>Libelle</th><th>Montant</th><th></th></tr></thead><tbody id="catEntriesBody"></tbody></table></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Categorie</th><th>Source</th><th>Libelle</th><th>Montant</th><th></th></tr></thead>
+            <tbody id="catEntriesBody"></tbody>
+          </table>
+        </div>
       </section>
     </section>
 
+    <!-- ════════════════════════════════════════════════════ DEPENSES ══ -->
     <section class="panel" id="panel-depenses">
       <section class="card">
-        <h2>Depenses caisse (fonction uniquement)</h2>
-        <p class="muted">Fonctions copiees depuis le modele Excel: saisie date/rayon/montant + total mensuel. Aucune donnee importee.</p>
+        <h2>Depenses caisse</h2>
         <form id="depForm" class="grid">
           <label>Date<input id="depDate" type="date" required></label>
           <label>Rayon / motif<input id="depRayon" type="text" required></label>
@@ -255,10 +311,10 @@
       </section>
     </section>
 
+    <!-- ═════════════════════════════════════════════════════ COUPONS ══ -->
     <section class="panel" id="panel-coupons">
       <section class="card">
-        <h2>SOGEC / Scan coupons (fonction uniquement)</h2>
-        <p class="muted">Fonctions copiees: suivi envoi/remboursement, ecart attendu/recu. Donnees non importe es.</p>
+        <h2>SOGEC / Scan coupons</h2>
         <form id="cpForm" class="grid">
           <label>Date envoi<input id="cpSentDate" type="date" required></label>
           <label>Type
@@ -279,10 +335,10 @@
       </section>
     </section>
 
+    <!-- ════════════════════════════════════════════════════ DEMARQUE ══ -->
     <section class="panel" id="panel-demarque">
       <section class="card">
-        <h2>Suivi demarque hebdo (fonction uniquement)</h2>
-        <p class="muted">Fonctions copiees: semaine, CA, demarque, taux %. Donnees non importe es.</p>
+        <h2>Suivi demarque hebdo</h2>
         <form id="dmForm" class="grid">
           <label>Semaine<input id="dmWeek" type="number" min="1" max="53" required></label>
           <label>CA<input id="dmCa" type="number" step="0.01" min="0" required></label>
@@ -294,6 +350,7 @@
         <div class="table-wrap"><table><thead><tr><th>Semaine</th><th>CA</th><th>Demarque</th><th>Taux</th><th></th></tr></thead><tbody id="dmTableBody"></tbody></table></div>
       </section>
     </section>
+
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
