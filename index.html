@@ -11,11 +11,12 @@
     <header class="top">
       <h1>Suivi Tresorerie</h1>
       <p>CA, solde cumulatif et disponibilite reellement en banque</p>
-      <p id="app-version" class="muted">Version: TR-2026.04.16-02</p>
+      <p id="app-version" class="muted">Version: TR-2026.04.19</p>
     </header>
 
     <nav class="tabs">
       <button class="tab active" data-tab="treso">Tresorerie</button>
+      <button class="tab" data-tab="horizon">Horizon 60j</button>
       <button class="tab" data-tab="tr">TR fournisseurs</button>
       <button class="tab" data-tab="echeances">Echeances / Impayes</button>
       <button class="tab" data-tab="analyse">Analyse categories</button>
@@ -48,74 +49,33 @@
         </form>
       </section>
 
-      <!-- Saisie du jour -->
-      <section class="card">
-        <h2>Saisie du jour</h2>
-        <form id="entry-form">
-
-          <div class="saisie-date-row">
-            <label class="label-date">Date
-              <input id="date" type="date" required tabindex="1">
-            </label>
-          </div>
-
-          <!-- CREDITS -->
-          <div class="form-section-label col-credit-bg">Credits / Encaissements</div>
-          <div class="saisie-grid">
-            <label>CA reel du jour (EUR)
-              <input id="ca" type="number" step="0.01" min="0" required placeholder="0.00" tabindex="2" class="input-big">
-            </label>
-            <label>CA N-1 reference (EUR)
-              <input id="caN1" type="number" step="0.01" min="0" placeholder="0.00" tabindex="3">
-            </label>
-            <label>Credit client (EUR)
-              <input id="credit2Amount" type="number" step="0.01" min="0" value="0" tabindex="12">
-            </label>
-            <label>Depot especes (EUR)
-              <input id="credit3Amount" type="number" step="0.01" min="0" value="0" tabindex="13">
-            </label>
-          </div>
-
-          <!-- DEBITS -->
-          <div class="form-section-label col-debit-bg">Debits / Sorties</div>
-          <div class="saisie-grid">
-            <label class="label-with-tag">
-              <input id="debit1Label" type="text" placeholder="Direct" tabindex="4" class="label-input">
-              <input id="debit1Amount" type="number" step="0.01" min="0" value="0" tabindex="5" placeholder="0.00">
-            </label>
-            <label class="label-with-tag">
-              <input id="debit2Label" type="text" placeholder="Com CB" tabindex="6" class="label-input">
-              <input id="debit2Amount" type="number" step="0.01" min="0" value="0" tabindex="7" placeholder="0.00">
-            </label>
-            <label class="label-with-tag">
-              <input id="debit3Label" type="text" placeholder="CRF" tabindex="8" class="label-input">
-              <input id="debit3Amount" type="number" step="0.01" min="0" value="0" tabindex="9" placeholder="0.00">
-            </label>
-            <label class="label-with-tag">
-              <input id="debit4Label" type="text" placeholder="Libelle libre..." tabindex="10" class="label-input">
-              <input id="debit4Amount" type="number" step="0.01" min="0" value="0" tabindex="11" placeholder="0.00">
-            </label>
-          </div>
-
-          <!-- Prélèvements additionnels -->
-          <div class="form-section-label col-debit-bg">Prelevements additionnels (plusieurs sur un meme jour)</div>
-          <div class="dl-form-row">
-            <input id="dlDate" type="date">
-            <input id="dlLabel" type="text" placeholder="Ex: Facture EDF, Loyer, Fournisseur X..." tabindex="16">
-            <input id="dlAmount" type="number" step="0.01" min="0" placeholder="0.00" tabindex="17">
-            <button id="dlAddBtn" type="button" tabindex="18">+ Ajouter</button>
-          </div>
-
-          <!-- Note + Submit -->
-          <div class="saisie-footer">
-            <label class="label-note">Commentaire
-              <input id="note" type="text" maxlength="180" placeholder="Ex: depot especes demain, paie samedi..." tabindex="14">
-            </label>
-            <button type="submit" class="btn-submit" tabindex="15">Enregistrer / Mettre a jour</button>
-          </div>
-
+      <!-- Saisie rapide -->
+      <section class="card" id="quick-entry-card">
+        <h2>Saisie rapide du jour</h2>
+        <form id="quickForm" class="quick-bar">
+          <label>Date<input id="qDate" type="date" required></label>
+          <label>CA &euro;<input id="qCa" type="number" step="0.01" min="0" placeholder="0.00"></label>
+          <label>Com CB &euro;<input id="qComCb" type="number" step="0.01" min="0" placeholder="0.00"></label>
+          <label>Depot especes &euro;<input id="qDepot" type="number" step="0.01" min="0" placeholder="0.00"></label>
+          <label class="wide-label">Note<input id="qNote" type="text" placeholder="Optionnel"></label>
+          <button type="submit">Enregistrer</button>
         </form>
       </section>
+
+      <!-- Saisie du jour (conserve en DOM invisible pour compatibilite JS) -->
+      <div style="display:none" aria-hidden="true">
+        <form id="entry-form">
+          <input id="date" type="date"><input id="ca" type="number"><input id="caN1" type="number">
+          <input id="credit2Amount" type="number"><input id="credit3Amount" type="number">
+          <input id="debit1Label" type="text"><input id="debit1Amount" type="number">
+          <input id="debit2Label" type="text"><input id="debit2Amount" type="number">
+          <input id="debit3Label" type="text"><input id="debit3Amount" type="number">
+          <input id="debit4Label" type="text"><input id="debit4Amount" type="number">
+          <input id="note" type="text">
+          <input id="dlDate" type="date"><input id="dlLabel" type="text">
+          <input id="dlAmount" type="number"><button id="dlAddBtn" type="button"></button>
+        </form>
+      </div>
 
       <!-- Dashboard -->
       <section class="card metrics">
@@ -146,6 +106,17 @@
         </div>
       </section>
 
+      <!-- Prelevements additionnels -->
+      <section class="card">
+        <h2>Ajouter un prelevement additionnel</h2>
+        <div class="dl-form-row">
+          <input id="dlDateVisible" type="date">
+          <input id="dlLabelVisible" type="text" placeholder="Libelle (Loyer, Assurance...)">
+          <input id="dlAmountVisible" type="number" step="0.01" min="0" placeholder="Montant EUR">
+          <button id="dlAddBtnVisible" type="button">+ Ajouter</button>
+        </div>
+      </section>
+
       <!-- Journal mensuel -->
       <section class="card">
         <h2>Journal mensuel</h2>
@@ -153,6 +124,7 @@
           <span class="tag debit">Debits / sorties</span>
           <span class="tag credit">Credits / entrees</span>
           <span class="tag solde">Solde cumulatif</span>
+          <span style="font-size:11px;color:#64748b;margin-left:8px;">Tab = suivant &bull; Enter = ligne suivante &bull; Esc = annuler</span>
         </div>
         <div class="table-wrap">
           <table id="table">
@@ -180,31 +152,180 @@
 
     </section>
 
+    <!-- ══════════════════════════════════════════════════════ HORIZON ══ -->
+    <section class="panel" id="panel-horizon">
+
+      <section class="card" id="horizon-controls-card">
+        <h2>Horizon de tresorerie projete</h2>
+        <div class="horizon-controls-row">
+          <label>Periode
+            <select id="horizonDays">
+              <option value="30">30 jours</option>
+              <option value="60" selected>60 jours</option>
+              <option value="90">90 jours</option>
+              <option value="120">120 jours</option>
+            </select>
+          </label>
+          <label>Seuil alerte (EUR)
+            <input id="horizonThreshold" type="number" step="100" value="2000" min="0">
+          </label>
+          <button type="button" id="horizonAutoProjectBtn">Auto-projeter CA</button>
+          <button type="button" id="horizonClearBtn" class="btn-danger">Effacer projections</button>
+        </div>
+        <p class="muted" style="margin:8px 0 0;font-size:12px;">
+          CA projete = moyenne du meme jour de semaine sur 90 jours d'historique (tendance du mois appliquee).
+          Cliquez sur une cellule CA pour modifier manuellement.
+        </p>
+      </section>
+
+      <section class="card metrics">
+        <div id="horizonKpis" class="kpis horizon-kpis"></div>
+      </section>
+
+      <div id="horizonAlerts"></div>
+
+      <section class="card">
+        <h2>Courbe de solde projete</h2>
+        <div class="sparkline-wrap">
+          <svg id="horizonSparkline" width="900" height="160" viewBox="0 0 900 160"></svg>
+        </div>
+        <div class="spark-legend">
+          <span class="spark-legend-item spark-hist">Historique</span>
+          <span class="spark-legend-item spark-proj">Projection CA</span>
+          <span class="spark-legend-item spark-thr">Seuil alerte</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Detail jour par jour</h2>
+        <div class="table-wrap">
+          <table id="horizonTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Jour</th>
+                <th>CA (editable)</th>
+                <th class="col-credit">Credits</th>
+                <th class="col-debit">Debits / Echeances</th>
+                <th>Net J</th>
+                <th class="col-solde">Solde proj.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="horizonBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Factures anticipees sur la periode</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Date echeance</th><th>Fournisseur</th><th>Objet</th><th>Montant restant</th><th>Regularite</th></tr>
+            </thead>
+            <tbody id="horizonEchBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </section>
+
     <!-- ═══════════════════════════════════════════════════════ TR ══ -->
     <section class="panel" id="panel-tr">
+
+      <!-- Scan douchette -->
+      <section class="card scan-douchette-card">
+        <h2>Scan douchette TR</h2>
+        <p class="muted" style="margin:0 0 10px;font-size:13px;">
+          Cliquez dans le champ ci-dessous puis passez la douchette sur le bordereau TR. Les champs se remplissent automatiquement.
+        </p>
+        <div class="scan-douchette-wrap">
+          <div class="scan-focus-indicator" id="scanFocusIndicator">
+            <input id="barcodeInput"
+                   type="text"
+                   class="barcode-input"
+                   placeholder="Cliquer ici puis scanner avec la douchette..."
+                   autocomplete="off"
+                   spellcheck="false">
+            <span class="scan-ready-badge" id="scanReadyBadge">EN ATTENTE</span>
+          </div>
+          <p class="muted" style="font-size:11px;margin:6px 0 0;">
+            La douchette envoie les donnees puis <kbd>Entree</kbd> automatiquement. Le montant et le fournisseur sont extraits du code-barre.
+          </p>
+        </div>
+        <div id="scanResultPreview" class="scan-result-preview" style="display:none">
+          <h3>Verification avant enregistrement</h3>
+          <div class="scan-result-fields">
+            <label>Fournisseur detecte
+              <select id="scanProvider">
+                <option value="BIMPLI">BIMPLI</option>
+                <option value="EDENRED">EDENRED</option>
+                <option value="PLUXEE">PLUXEE</option>
+                <option value="UP COOP">UP COOP</option>
+                <option value="SOGEC">SOGEC</option>
+                <option value="HIGH CO DATA">HIGH CO DATA</option>
+                <option value="SCANCOUPON">SCANCOUPON</option>
+                <option value="INCONNU">INCONNU</option>
+              </select>
+            </label>
+            <label>Montant (EUR)
+              <input id="scanAmount" type="number" step="0.01" min="0" placeholder="0.00">
+            </label>
+            <label>Reference / lot
+              <input id="scanRef" type="text" placeholder="Reference">
+            </label>
+            <label>Date
+              <input id="scanDate" type="date">
+            </label>
+          </div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:8px;">Code-barre brut : <code id="scanRawBarcode"></code></div>
+          <div class="scan-result-actions">
+            <button type="button" id="scanSaveBtn">Enregistrer ce TR</button>
+            <button type="button" id="scanCancelBtn" style="background:#64748b;">Annuler</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Saisie manuelle et import -->
       <section class="card">
-        <h2>Ajout TR (avec detection doublon)</h2>
-        <div class="row" style="margin-bottom:10px;">
+        <h2>Saisie manuelle / Import</h2>
+        <div class="row" style="margin-bottom:10px;flex-wrap:wrap;gap:8px;">
           <label style="margin:0;font-size:12px;">
             Import Excel TR
             <input id="trImportXlsx" type="file" accept=".xlsx,.xls,.csv" style="margin-left:6px;">
           </label>
-          <div>
-            <button id="trKeepFirstBtn" type="button">Garder 1er / supprimer doublons</button>
-          </div>
+          <button id="trKeepFirstBtn" type="button">Supprimer doublons</button>
         </div>
         <form id="tr-form" class="grid">
           <label>Date<input id="trDate" type="date" required></label>
+          <label>Fournisseur
+            <select id="trProvider">
+              <option value="BIMPLI">BIMBLI</option>
+              <option value="EDENRED">EDENRED</option>
+              <option value="PLUXEE">PLUXEE</option>
+              <option value="UP COOP">UP COOP</option>
+              <option value="SOGEC">SOGEC</option>
+              <option value="HIGH CO DATA">HIGH CO DATA</option>
+              <option value="SCANCOUPON">SCANCOUPON</option>
+              <option value="INCONNU">INCONNU</option>
+            </select>
+          </label>
           <label>Reference ticket / lot<input id="trRef" type="text" placeholder="Ref bordereau / lot"></label>
           <label>Montant (EUR)<input id="trAmount" type="number" step="0.01" min="0" required></label>
           <label class="wide">Source<input id="trSource" type="text" value="Saisie manuelle"></label>
           <button type="submit">Ajouter TR</button>
         </form>
+        <div style="margin-top:10px;">
+          <input id="trSearch" type="text" placeholder="Rechercher dans les TR..." style="width:100%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;">
+        </div>
       </section>
+
       <section class="card metrics">
         <h2>Resume TR par fournisseur</h2>
         <div id="trKpis" class="kpis"></div>
       </section>
+
       <section class="card">
         <div class="row">
           <h2>Journal TR</h2>
@@ -232,7 +353,7 @@
           <label>Montant total<input id="echAmount" type="number" step="0.01" min="0" required></label>
           <label>Statut
             <select id="echStatus">
-              <option value="A_REGler">A regler</option>
+              <option value="A_REGLER">A regler</option>
               <option value="IMPAYE">Impaye</option>
               <option value="PLAN">Plan remboursement</option>
               <option value="REGLE">Regle</option>

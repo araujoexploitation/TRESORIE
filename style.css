@@ -105,7 +105,7 @@ button[data-del]{background:#fee2e2;color:#b91c1c;border:none;padding:3px 9px;fo
 button[data-del]:hover{background:#fca5a5}
 
 /* Légende */
-.excel-legend{display:flex;gap:8px;flex-wrap:wrap}
+.excel-legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tag{display:inline-block;font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid transparent}
 .tag.debit{background:#fff7ed;border-color:#fdba74;color:#9a3412}
 .tag.credit{background:#f0fdf4;border-color:#86efac;color:#166534}
@@ -147,3 +147,72 @@ tr.today-divider td{background:#ede9fe;color:#7c3aed;font-size:11px;font-weight:
   .kpi-hero .v{font-size:28px}
   .metrics .kpis{grid-template-columns:1fr}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NOUVELLES SECTIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Saisie rapide ───────────────────────────────────────────────────────── */
+#quick-entry-card{border-left:4px solid #16a34a}
+.quick-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.quick-bar label{flex:0 0 auto;min-width:120px}
+.quick-bar .wide-label{flex:1 1 200px}
+.quick-bar button[type="submit"]{flex:0 0 auto;padding:9px 22px;align-self:flex-end}
+
+/* ── Horizon panel ───────────────────────────────────────────────────────── */
+.horizon-controls-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.horizon-controls-row label{flex:0 0 auto;min-width:130px}
+.btn-danger{background:#b91c1c!important}
+.btn-danger:hover{background:#991b1b!important}
+.horizon-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+
+/* ── Alert boxes ─────────────────────────────────────────────────────────── */
+.alert-box{padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;margin-bottom:8px;border:2px solid transparent}
+.alert-box.critical{background:#fee2e2;border-color:#b91c1c;color:#7f1d1d}
+.alert-box.warning{background:#fef3c7;border-color:#d97706;color:#78350f}
+.alert-box.success{background:#dcfce7;border-color:#16a34a;color:#14532d}
+.alert-box.info{background:#eff6ff;border-color:#2563eb;color:#1e3a8a}
+
+/* ── Sparkline SVG ───────────────────────────────────────────────────────── */
+.sparkline-wrap{overflow-x:auto;background:#f8fafc;border-radius:8px;padding:8px}
+#horizonSparkline{display:block;min-width:600px}
+.spark-line{fill:none;stroke:#0c4a8a;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.spark-line-future{fill:none;stroke:#7c3aed;stroke-width:2;stroke-dasharray:5 4;stroke-linejoin:round}
+.spark-zero{stroke:#94a3b8;stroke-width:1;stroke-dasharray:4 3}
+.spark-threshold{stroke:#f59e0b;stroke-width:1.5;stroke-dasharray:6 3}
+.spark-today-line{stroke:#0c4a8a;stroke-width:1.5;stroke-dasharray:3 3}
+.spark-point-danger{fill:#b91c1c}
+.spark-label{font-size:9px;fill:#64748b;font-family:system-ui,sans-serif}
+.spark-legend{display:flex;gap:16px;margin-top:8px;font-size:12px;flex-wrap:wrap}
+.spark-legend-item{display:flex;align-items:center;gap:6px}
+.spark-legend-item::before{content:"";display:inline-block;width:24px;height:3px;border-radius:2px}
+.spark-hist::before{background:#0c4a8a}
+.spark-proj::before{background:#7c3aed}
+.spark-thr::before{background:#f59e0b}
+
+/* ── Horizon table rows ──────────────────────────────────────────────────── */
+tr.row-projected td{background:#faf5ff!important;color:#6b21a8;font-style:italic}
+tr.row-projected .col-solde{background:#ede9fe!important}
+tr.row-today td{background:#fffbeb!important;border-top:2px solid #fbbf24;border-bottom:2px solid #fbbf24}
+tr.row-danger .col-solde{background:#fee2e2!important;color:#b91c1c;font-weight:700}
+tr.row-warning .col-solde{background:#fef3c7!important;color:#b45309}
+tr.has-ech td:first-child::after{content:" ECH";font-size:9px;color:#dc2626;font-weight:700;vertical-align:super;margin-left:2px}
+tr.month-boundary td{background:#f1f5f9;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#475569;padding:4px 8px;border-top:2px solid #cbd5e1}
+.tag.projected{background:#f3e8ff;border-color:#c4b5fd;color:#6b21a8;font-size:10px;padding:1px 5px}
+td.horizon-ca-cell{cursor:pointer}
+td.horizon-ca-cell:hover{background:rgba(124,58,237,.08)!important;outline:2px solid #c4b5fd;outline-offset:-1px}
+
+/* ── Scan douchette ──────────────────────────────────────────────────────── */
+.scan-douchette-card{border-left:4px solid #7c3aed}
+.scan-douchette-wrap{margin-bottom:0}
+.scan-focus-indicator{position:relative;display:flex;align-items:center;gap:10px}
+.barcode-input{flex:1;font-family:monospace;font-size:15px;letter-spacing:.05em;padding:12px 14px;border:2px dashed #c4b5fd;border-radius:10px;background:#faf5ff;transition:border-color .2s,background .2s,box-shadow .2s}
+.barcode-input:focus{border-style:solid;border-color:#7c3aed;background:#fff;outline:none;box-shadow:0 0 0 4px rgba(124,58,237,.15)}
+.scan-ready-badge{flex:0 0 auto;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.06em;background:#f3e8ff;color:#7c3aed;border:1px solid #c4b5fd;transition:background .2s,color .2s}
+.scan-ready-badge.active{background:#7c3aed;color:#fff;border-color:#7c3aed}
+kbd{display:inline-block;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:1px 5px;font-size:11px;font-family:monospace}
+
+.scan-result-preview{margin-top:14px;padding:14px;border:1.5px solid #c4b5fd;border-radius:10px;background:#faf5ff}
+.scan-result-preview h3{margin:0 0 10px;font-size:15px;color:#6b21a8}
+.scan-result-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.scan-result-actions{display:flex;gap:10px;margin-top:10px}
