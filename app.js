@@ -1837,7 +1837,106 @@ function nextDueDate(dueDate, recurrence) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
-// ─── SECTION 11 : RERENDER GLOBAL ────────────────────────────────────────────
+// ─── SECTION 11 : RECAP DEPENSES ─────────────────────────────────────────────
+
+function renderRecapDepenses() {
+  const container  = document.getElementById("recapDepPanel");
+  const kpisEl     = document.getElementById("recapKpis");
+  if (!container) return;
+
+  const nMonths    = parseInt(document.getElementById("recapMonthCount")?.value || 12, 10);
+  const customCols = getCustomColumns();
+  const allV2      = loadEntries(KEYS.tresoV2);
+  const allDL      = loadEntries(KEYS.debitLines);
+  const allDep     = loadEntries(KEYS.dep);
+
+  // Construire la liste des mois couverts
+  const allMonthsSet = new Set([
+    ...allV2.map(r => monthKeyOf(r.date)),
+    ...allDL.map(r => monthKeyOf(r.date)),
+    ...allDep.map(r => monthKeyOf(r.date))
+  ]);
+  const months = [...allMonthsSet].filter(Boolean).sort().slice(-nMonths);
+
+  if (!months.length) {
+    container.innerHTML = `<p class="muted" style="text-align:center;padding:24px">Aucune donnee de depenses.</p>`;
+    if (kpisEl) kpisEl.innerHTML = "";
+    return;
+  }
+
+  // Agréger totaux par intitulé × mois
+  const totals = {};
+  const add = (label, month, amount) => {
+    if (!label || !month || amount <= 0) return;
+    if (!months.includes(month)) return;
+    if (!totals[label]) totals[label] = {};
+    totals[label][month] = (totals[label][month] || 0) + amount;
+  };
+
+  allV2.forEach(r => {
+    const m = monthKeyOf(r.date);
+    add(r.debit1Label || "Direct",  m, parseNum(r.debit1Amount));
+    add(r.debit2Label || "Com CB",  m, parseNum(r.debit2Amount));
+    add(r.debit3Label || "CRF",     m, parseNum(r.debit3Amount));
+    if (r.debit4Label || parseNum(r.debit4Amount) > 0)
+      add(r.debit4Label || "Divers", m, parseNum(r.debit4Amount));
+    customCols.forEach(c => add(c.label, m, parseNum(r[c.id])));
+  });
+  allDL.forEach(l => add(l.label || "Prelevement", monthKeyOf(l.date), parseNum(l.amount)));
+  allDep.forEach(d => add(`Caisse : ${d.rayon || "Divers"}`, monthKeyOf(d.date), parseNum(d.amount)));
+
+  const labels    = Object.keys(totals).sort((a, b) => {
+    const ta = Object.values(totals[a]).reduce((s,v)=>s+v,0);
+    const tb = Object.values(totals[b]).reduce((s,v)=>s+v,0);
+    return tb - ta; // tri par total décroissant
+  });
+  const MNAMES    = ["","Jan","Fev","Mar","Avr","Mai","Jun","Jul","Aou","Sep","Oct","Nov","Dec"];
+  const rowTotals = {};
+  labels.forEach(l => { rowTotals[l] = Object.values(totals[l]).reduce((s,v)=>s+v,0); });
+  const colTotals = {};
+  months.forEach(m => { colTotals[m] = labels.reduce((s,l)=>s+(totals[l][m]||0),0); });
+  const grandTotal = labels.reduce((s,l)=>s+rowTotals[l],0);
+
+  // KPIs : top 4 postes de dépenses
+  if (kpisEl) {
+    kpisEl.innerHTML = labels.slice(0,6).map(l =>
+      `<div class="kpi"><div class="v">${eur(rowTotals[l])}</div><div class="l">${l}</div></div>`
+    ).join("");
+  }
+
+  const mHeaders = months.map(m => {
+    const [,mo] = m.split("-").map(Number);
+    return `<th style="text-align:right;font-size:12px">${MNAMES[mo]} ${m.slice(2,4)}</th>`;
+  }).join("");
+
+  const bodyRows = labels.map(l => `<tr>
+    <td><strong>${l}</strong></td>
+    ${months.map(m => {
+      const v = totals[l][m] || 0;
+      return `<td style="text-align:right">${v > 0 ? eur(v) : "<span style='color:#cbd5e1'>—</span>"}</td>`;
+    }).join("")}
+    <td style="text-align:right;font-weight:600;background:#fff1f2">${eur(rowTotals[l])}</td>
+  </tr>`).join("");
+
+  container.innerHTML = `<div class="table-wrap"><table style="font-size:13px;width:100%">
+    <thead>
+      <tr>
+        <th>Intitule</th>${mHeaders}
+        <th style="text-align:right;background:#fff1f2">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${bodyRows}
+      <tr style="background:#f1f5f9;border-top:2px solid #334155">
+        <td><strong>Total</strong></td>
+        ${months.map(m=>`<td style="text-align:right;font-weight:600">${colTotals[m]>0?eur(colTotals[m]):""}</td>`).join("")}
+        <td style="text-align:right;font-weight:700;background:#fff1f2">${eur(grandTotal)}</td>
+      </tr>
+    </tbody>
+  </table></div>`;
+}
+
+// ─── SECTION 12 : RERENDER GLOBAL ────────────────────────────────────────────
 
 function rerender() {
   const monthPicker = document.getElementById("monthPicker");
@@ -1853,6 +1952,7 @@ function rerender() {
   renderCoupons();
   renderDemarque();
   renderImpayes();
+  renderRecapDepenses();
 }
 
 // ─── SECTION 12 : EVENT LISTENERS ────────────────────────────────────────────
@@ -2234,6 +2334,9 @@ document.getElementById("dmForm")?.addEventListener("submit", e => {
   document.getElementById("dmForm").reset();
   renderDemarque();
 });
+
+// --- Recap depenses ---
+document.getElementById("recapMonthCount")?.addEventListener("change", renderRecapDepenses);
 
 // --- Prévisions CA ---
 document.getElementById("caPrevDays")?.addEventListener("change", e => {

@@ -20,6 +20,7 @@
       <button class="tab" data-tab="depenses">Depenses caisse</button>
       <button class="tab" data-tab="coupons">SOGEC / Coupons</button>
       <button class="tab" data-tab="demarque">Demarque</button>
+      <button class="tab" data-tab="recap">Recap depenses</button>
     </nav>
 
     <!-- ═══════════════════════════════════════════════════════ TRESO ══ -->
@@ -265,6 +266,29 @@
     </section>
 
   </main>
+
+    <!-- ═══════════════════════════════════════════════════════ RECAP ══ -->
+    <section class="panel" id="panel-recap">
+      <section class="card metrics" style="margin-bottom:14px">
+        <div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <h2 style="margin:0">Recap depenses par intitule</h2>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:13px;margin:0;display:flex;align-items:center;gap:6px">
+              Periode :
+              <select id="recapMonthCount" style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+                <option value="3">3 derniers mois</option>
+                <option value="6">6 derniers mois</option>
+                <option value="12" selected>12 derniers mois</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div id="recapKpis" class="kpis"></div>
+      </section>
+      <section class="card">
+        <div id="recapDepPanel"></div>
+      </section>
+    </section>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="./app.js"></script>
