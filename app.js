@@ -446,21 +446,18 @@ function getSoldeToday() {
 }
 
 function forecastCAForDate(iso) {
-  const today     = todayISO();
-  const targetDow = dayOfWeek(iso);
-  const cutoff    = addDays(today, -getCaPrevDays());
+  const today  = todayISO();
+  const cutoff = addDays(today, -getCaPrevDays());
 
   const historical = loadEntries(KEYS.tresoV2)
-    .filter(r => r.date >= cutoff && r.date < today && dayOfWeek(r.date) === targetDow)
+    .filter(r => r.date >= cutoff && r.date < today)
     .map(r => parseNum(r.ca))
     .filter(v => v > 0);
 
   if (!historical.length) return 0;
 
-  const avg      = historical.reduce((s, v) => s + v, 0) / historical.length;
-  const cfg      = getMonthConfig(monthKeyOf(iso));
-  const trend    = 1 + parseNum(cfg.tendance) / 100;
-  return Math.round(avg * trend * 100) / 100;
+  const avg = historical.reduce((s, v) => s + v, 0) / historical.length;
+  return Math.round(avg * 100) / 100;
 }
 
 function materializeEcheance(ech, from, until) {
