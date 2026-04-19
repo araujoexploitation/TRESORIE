@@ -1897,11 +1897,28 @@ function renderRecapDepenses() {
   months.forEach(m => { colTotals[m] = labels.reduce((s,l)=>s+(totals[l][m]||0),0); });
   const grandTotal = labels.reduce((s,l)=>s+rowTotals[l],0);
 
-  // KPIs : top 4 postes de dépenses
+  // Diagramme barres horizontales — toutes les catégories, triées décroissant
   if (kpisEl) {
-    kpisEl.innerHTML = labels.slice(0,6).map(l =>
-      `<div class="kpi"><div class="v">${eur(rowTotals[l])}</div><div class="l">${l}</div></div>`
-    ).join("");
+    const maxVal = rowTotals[labels[0]] || 1;
+    const COLORS = [
+      "#0c4a8a","#7c3aed","#0891b2","#059669",
+      "#d97706","#b91c1c","#6d28d9","#0369a1",
+      "#be185d","#0f766e","#92400e","#1d4ed8"
+    ];
+    kpisEl.className = "bar-chart";
+    kpisEl.innerHTML = labels.map((l, i) => {
+      const pct   = (rowTotals[l] / maxVal * 100).toFixed(1);
+      const color = COLORS[i % COLORS.length];
+      return `<div class="bar-row">
+        <div class="bar-label" title="${l}">${l}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${pct}%;background:${color}">
+            <span class="bar-inner-val">${pct > 35 ? eur(rowTotals[l]) : ""}</span>
+          </div>
+        </div>
+        <div class="bar-value" style="color:${color}">${eur(rowTotals[l])}</div>
+      </div>`;
+    }).join("");
   }
 
   const mHeaders = months.map(m => {
