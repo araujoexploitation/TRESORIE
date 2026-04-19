@@ -223,3 +223,7 @@ tr.row-overdue{background:#fff5f5}
 tr.row-overdue td:first-child{color:#b91c1c;font-weight:700}
 .btn-imp-pay{background:#7c3aed;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px}
 .btn-imp-pay:hover{background:#6d28d9}
+/* Colonnes personnalisées (orange) */
+th.col-custom-debit{background:#fff7ed;color:#c2410c;border-bottom-color:#f97316}
+td.col-custom-debit{background:#fff7ed}
+td.col-custom-debit.editable:hover{outline:1px solid #f97316;cursor:pointer}

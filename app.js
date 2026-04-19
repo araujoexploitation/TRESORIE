@@ -217,31 +217,8 @@ function getPrevMonthEndingSolde(monthKey) {
 
 function loadMonthConfigIntoForm(monthKey) {
   const cfg = getMonthConfig(monthKey);
-  const lbl = document.getElementById("monthConfigLabel");
-  if (lbl) lbl.textContent = monthKey;
-  const sd = document.getElementById("cfgSoldeDebut");
-  const cb = document.getElementById("cfgCaBudget");
-  const cp = document.getElementById("cfgCaPrev");
-  const ct = document.getElementById("cfgTendance");
+  const sd  = document.getElementById("cfgSoldeDebut");
   if (sd) sd.value = cfg.soldeDebutMois || "";
-  if (cb) cb.value = cfg.caBudget || "";
-  if (cp) cp.value = cfg.caPrev || "";
-  if (ct) ct.value = cfg.tendance || "";
-
-  const btn      = document.getElementById("cfgSoldeReprendreBtn");
-  if (!btn) return;
-  const prevSolde = getPrevMonthEndingSolde(monthKey);
-  if (prevSolde !== null && !parseNum(cfg.soldeDebutMois)) {
-    btn.textContent    = `\u21e6 Reprendre fin ${getPrevMonthKey(monthKey)} : ${eur(prevSolde)}`;
-    btn.style.display  = "block";
-    btn.dataset.solde  = prevSolde;
-  } else if (prevSolde !== null) {
-    btn.textContent    = `Fin ${getPrevMonthKey(monthKey)} : ${eur(prevSolde)}`;
-    btn.style.display  = "block";
-    btn.dataset.solde  = prevSolde;
-  } else {
-    btn.style.display  = "none";
-  }
 }
 
 function prefillFormDefaults() {
@@ -274,13 +251,77 @@ function migrateV1toV2() {
   saveEntries(KEYS.tresoV2, migrated);
 }
 
+// ─── Colonnes personnalisées (orange) ────────────────────────────────────────
+
+function getCustomColumns() {
+  return loadConfig()._customColumns || [];
+}
+function saveCustomColumnsToConfig(cols) {
+  const cfg = loadConfig();
+  cfg._customColumns = cols;
+  saveConfig(cfg);
+}
+function addCustomColumn(label) {
+  const cols = getCustomColumns();
+  cols.push({ id: `cc${Date.now()}`, label: String(label).trim() });
+  saveCustomColumnsToConfig(cols);
+}
+function removeCustomColumn(id) {
+  saveCustomColumnsToConfig(getCustomColumns().filter(c => c.id !== id));
+}
+
+function renderColList() {
+  const list = document.getElementById("colList");
+  if (!list) return;
+  const cols = getCustomColumns();
+  list.innerHTML = cols.map(c =>
+    `<span style="background:#fff7ed;border:1px solid #f97316;color:#c2410c;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px">
+      ${c.label}
+      <button data-remcol="${c.id}" type="button" style="background:none;border:none;cursor:pointer;color:#9a3412;font-size:15px;line-height:1;padding:0">&times;</button>
+    </span>`
+  ).join("");
+  list.querySelectorAll("button[data-remcol]").forEach(b => {
+    b.onclick = () => { removeCustomColumn(b.dataset.remcol); rerender(); };
+  });
+}
+
+function renderTableHeaders() {
+  const thead = document.querySelector("#table thead tr");
+  if (!thead) return;
+  const d    = getDefaults();
+  const cols = getCustomColumns();
+  const customTh = cols.map(c =>
+    `<th class="col-custom-debit" id="th-${c.id}">${c.label}</th>`
+  ).join("");
+  thead.innerHTML =
+    `<th>Date</th>
+     <th class="col-debit" id="th-debit1">${d.debit1Label||"Direct"}</th>
+     <th class="col-debit" id="th-debit2">${d.debit2Label||"Com CB"}</th>
+     <th class="col-debit" id="th-debit3">${d.debit3Label||"CRF"}</th>
+     <th class="col-debit" id="th-debit4">${d.debit4Label||"Divers"}</th>
+     ${customTh}
+     <th class="col-credit">CA</th>
+     <th class="col-credit">N-1</th>
+     <th class="col-credit" id="th-credit2">${d.credit2Label||"Credit+"}</th>
+     <th class="col-credit" id="th-credit3">${d.credit3Label||"Depot"}</th>
+     <th class="col-solde">Solde J</th>
+     <th>Net J</th>
+     <th>Note</th>
+     <th></th>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function computeRow(x, debitLines) {
-  const linesTotal   = (debitLines || []).reduce((s, l) => s + parseNum(l.amount), 0);
+  const cols        = getCustomColumns();
+  const linesTotal  = (debitLines || []).reduce((s, l) => s + parseNum(l.amount), 0);
+  const customTotal = cols.reduce((s, c) => s + parseNum(x[c.id] || 0), 0);
   const totalDebits  = parseNum(x.debit1Amount) + parseNum(x.debit2Amount)
-                     + parseNum(x.debit3Amount)  + parseNum(x.debit4Amount) + linesTotal;
+                     + parseNum(x.debit3Amount)  + parseNum(x.debit4Amount)
+                     + linesTotal + customTotal;
   const totalCredits = parseNum(x.ca) + parseNum(x.credit2Amount) + parseNum(x.credit3Amount);
   const netJour      = totalCredits - totalDebits;
-  return { ...x, totalDebits, totalCredits, netJour, debitLines: debitLines || [], linesTotal };
+  return { ...x, totalDebits, totalCredits, netJour, debitLines: debitLines || [], linesTotal, customTotal };
 }
 
 function upsertEntry(entry) {
@@ -778,25 +819,36 @@ function renderKpis(monthKey) {
 function renderTable(monthKey) {
   const tableBody = document.querySelector("#table tbody");
   if (!tableBody) return;
-  const rows    = getMonthRows(monthKey);
-  const d       = getDefaults();
-  const today   = todayISO();
-  const threshold = getSoldeAlertThreshold();
-  let dividerInserted = false;
 
-  const setTh = (id, txt) => { const th = document.getElementById(id); if (th) th.textContent = txt; };
-  setTh("th-debit1",  d.debit1Label  || "Direct");
-  setTh("th-debit2",  d.debit2Label  || "Com CB");
-  setTh("th-debit3",  d.debit3Label  || "CRF");
-  setTh("th-debit4",  d.debit4Label  || "Divers");
-  setTh("th-credit2", d.credit2Label || "Credit+");
-  setTh("th-credit3", d.credit3Label || "Depot");
+  renderTableHeaders();
+  renderColList();
+
+  const rows      = getMonthRows(monthKey);
+  const cfg       = getMonthConfig(monthKey);
+  const customCols = getCustomColumns();
+  const today     = todayISO();
+  const threshold = getSoldeAlertThreshold();
+  const NC        = 13 + customCols.length; // total columns for colspan
+  let dividerInserted = false;
 
   const E  = (f, dd, t) => `data-field="${f}" data-date="${dd}" data-type="${t}"`;
   const dv = (v) => v ? eur(v) : "";
 
+  // ── Ligne Solde début de mois (éditable) ──
+  const soldeDebut = parseNum(cfg.soldeDebutMois);
+  const sdCls = soldeDebut < 0 ? "danger" : soldeDebut < threshold ? "warn" : "ok";
+  let html = `<tr class="solde-debut-row" style="background:#f8fafc;border-bottom:2px solid #cbd5e1">
+    <td style="font-size:11px;font-weight:700;color:#475569;padding:5px 8px">DEBUT MOIS</td>
+    <td colspan="${4 + customCols.length}"></td>
+    <td colspan="4"></td>
+    <td class="col-solde ${sdCls} editable" ${E("soldeDebutMois", monthKey, "number")} title="Cliquer pour modifier le solde de debut de mois">
+      <strong>${eur(soldeDebut)}</strong>
+    </td>
+    <td colspan="3"></td>
+  </tr>`;
+
   // ── Lignes du mois sélectionné ──
-  let html = rows.map(r => {
+  html += rows.map(r => {
     const isFuture = r.date > today;
     const isToday  = r.date === today;
     const isEmpty  = !r._exists;
@@ -811,13 +863,16 @@ function renderTable(monthKey) {
     let divider = "";
     if (isFuture && !dividerInserted) {
       dividerInserted = true;
-      divider = `<tr class="today-divider"><td colspan="13">\u25bc Projections</td></tr>`;
+      divider = `<tr class="today-divider"><td colspan="${NC}">\u25bc Projections</td></tr>`;
     }
 
     const soldeClass = r.soldeCumulatif < 0 ? "danger" : r.soldeCumulatif < threshold ? "warn" : "ok";
     const netClass   = r.netJour < 0 ? "danger" : r.netJour > 0 ? "ok" : "";
     const shortNote  = r.note ? (r.note.length > 28 ? r.note.slice(0, 28) + "\u2026" : r.note) : "";
     const delBtn     = r._exists ? `<button data-del="${r.date}" type="button">\u00d7</button>` : "";
+    const customCells = customCols.map(c =>
+      `<td class="col-custom-debit editable" ${E(c.id, r.date, "number")}>${dv(r[c.id])}</td>`
+    ).join("");
 
     const mainRow = `<tr class="${classes}" data-row-date="${r.date}">
       <td class="date-cell"><strong>${r.date.slice(8)}</strong></td>
@@ -825,6 +880,7 @@ function renderTable(monthKey) {
       <td class="col-debit editable" ${E("debit2Amount",  r.date, "number")}>${dv(r.debit2Amount)}</td>
       <td class="col-debit editable" ${E("debit3Amount",  r.date, "number")}>${dv(r.debit3Amount)}</td>
       <td class="col-debit editable" ${E("debit4Amount",  r.date, "number")}>${dv(r.debit4Amount)}</td>
+      ${customCells}
       <td class="col-credit editable" ${E("ca",           r.date, "number")}>${dv(r.ca)}</td>
       <td class="col-credit muted-val editable" ${E("caN1", r.date, "number")}>${dv(r.caN1)}</td>
       <td class="col-credit editable" ${E("credit2Amount",r.date, "number")}>${dv(r.credit2Amount)}</td>
@@ -837,45 +893,42 @@ function renderTable(monthKey) {
 
     const subRows = (r.debitLines || []).map(l => `<tr class="debit-line-row${isFuture?" preview-row":""}">
       <td class="dl-indent">\u2514</td>
-      <td colspan="8" class="col-debit dl-label-cell">${l.label || "Prelev."}</td>
-      <td class="col-debit dl-amount-cell">\u2212 ${eur(l.amount)}</td>
-      <td></td><td></td>
+      <td colspan="${4 + customCols.length}" class="col-debit dl-label-cell">${l.label || "Prelev."}</td>
+      <td colspan="4" class="col-debit dl-amount-cell">\u2212 ${eur(l.amount)}</td>
+      <td></td><td></td><td></td>
       <td><button type="button" data-deldl="${l.id}">\u00d7</button></td>
     </tr>`).join("");
 
     return divider + mainRow + subRows;
   }).join("");
 
-  // ── Extension horizon : aujourd'hui+1 → aujourd'hui+60, au-delà du mois affiché ──
+  // ── Extension horizon : au-delà du mois affiché (aujourd'hui → +60j) ──
   if (monthKey === currentMonth()) {
     const DAY_NAMES = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
     const lastMonthDate = rows[rows.length - 1]?.date || today;
     const endDate       = addDays(today, 60);
 
     if (lastMonthDate < endDate) {
-      // Calcul horizon pour la chaîne de solde
-      const hRows = computeHorizonRows(70);
-      const hMap  = new Map(hRows.map(r => [r.date, r]));
-      const allV2 = loadEntries(KEYS.tresoV2);
-      const realMap  = new Map(allV2.map(r => [r.date, r]));
-      const allDL    = loadEntries(KEYS.debitLines);
-
-      let prevMk = monthKey;
-      let cursor = addDays(lastMonthDate, 1);
+      const hRows  = computeHorizonRows(70);
+      const hMap   = new Map(hRows.map(r => [r.date, r]));
+      const allV2  = loadEntries(KEYS.tresoV2);
+      const realMap = new Map(allV2.map(r => [r.date, r]));
+      const allDL  = loadEntries(KEYS.debitLines);
       const MONTHS = ["Jan","Fev","Mar","Avr","Mai","Jun","Jul","Aou","Sep","Oct","Nov","Dec"];
+      let prevMk   = monthKey;
+      let cursor   = addDays(lastMonthDate, 1);
 
       while (cursor <= endDate) {
         const mk = monthKeyOf(cursor);
         if (mk !== prevMk) {
           const [y, m] = mk.split("-").map(Number);
-          html += `<tr class="month-boundary"><td colspan="13">${MONTHS[m-1]} ${y} — Projections</td></tr>`;
+          html += `<tr class="month-boundary"><td colspan="${NC}">${MONTHS[m-1]} ${y} — Projections</td></tr>`;
           prevMk = mk;
         }
 
         const h    = hMap.get(cursor);
         const real = realMap.get(cursor);
         const echs = h?.echs || [];
-
         let ca, debit1, net, balance;
         let isForecast = false, hasManual = false;
 
@@ -901,14 +954,16 @@ function renderTable(monthKey) {
         const echNote    = echs.map(e => e.vendor || e.label || "ECH").join(", ");
         const shortNote  = echNote.length > 28 ? echNote.slice(0, 28) + "\u2026" : echNote;
         const caTag      = hasManual
-          ? `<span class="tag projected" title="Saisi manuellement" style="font-size:9px;padding:1px 4px">M</span>`
+          ? `<span class="tag projected" style="font-size:9px;padding:1px 4px">M</span>`
           : isForecast && ca > 0
-            ? `<span class="tag projected" title="Prevision historique" style="font-size:9px;padding:1px 4px">P</span>` : "";
-
+            ? `<span class="tag projected" style="font-size:9px;padding:1px 4px">P</span>` : "";
         const rowCls = [
           real ? "preview-row" : "preview-row row-projected",
           balance < 0 ? "row-danger" : balance < threshold ? "row-warning" : ""
         ].filter(Boolean).join(" ");
+        const customCellsP = customCols.map(c =>
+          `<td class="col-custom-debit editable" ${E(c.id, cursor, "number")}>${real ? dv(real[c.id]) : ""}</td>`
+        ).join("");
 
         html += `<tr class="${rowCls}" data-row-date="${cursor}">
           <td class="date-cell"><strong>${cursor.slice(8)}</strong> <span style="font-size:10px;color:#94a3b8">${dayName}</span></td>
@@ -916,6 +971,7 @@ function renderTable(monthKey) {
           <td class="col-debit editable" ${E("debit2Amount", cursor, "number")}>${real ? dv(real.debit2Amount) : ""}</td>
           <td class="col-debit editable" ${E("debit3Amount", cursor, "number")}>${real ? dv(real.debit3Amount) : ""}</td>
           <td class="col-debit editable" ${E("debit4Amount", cursor, "number")}>${real ? dv(real.debit4Amount) : ""}</td>
+          ${customCellsP}
           <td class="col-credit editable" ${E("ca", cursor, "number")}>${ca > 0 ? eur(ca) : ""} ${caTag}</td>
           <td class="col-credit muted-val editable" ${E("caN1", cursor, "number")}></td>
           <td class="col-credit editable" ${E("credit2Amount", cursor, "number")}>${real ? dv(real.credit2Amount) : ""}</td>
@@ -940,12 +996,10 @@ function renderTable(monthKey) {
     b.addEventListener("click", () => {
       const id = b.dataset.deldl;
       saveEntries(KEYS.debitLines, loadEntries(KEYS.debitLines).filter(l => l.id !== id));
-      saveEntries(KEYS.catEntries, loadEntries(KEYS.catEntries).filter(e => e.sourceRef !== `DL-${id}`));
       rerender();
     })
   );
 
-  // Édition inline — clic sur cellule
   tableBody.addEventListener("click", e => {
     const td = e.target.closest("td[data-field]");
     if (!td || td.querySelector("input")) return;
@@ -957,6 +1011,30 @@ function startCellEdit(td, tableBody) {
   const field = td.dataset.field;
   const date  = td.dataset.date;
   const type  = td.dataset.type || "text";
+
+  // Cas spécial : solde début de mois (stocké dans config, pas tresoV2)
+  if (field === "soldeDebutMois") {
+    const cfg   = getMonthConfig(date);
+    const input = document.createElement("input");
+    input.type = "number"; input.step = "0.01";
+    input.value = parseNum(cfg.soldeDebutMois) || "";
+    input.className = "cell-edit-input";
+    td.textContent = ""; td.appendChild(input);
+    input.focus(); input.select();
+    const save = () => {
+      setMonthConfig(date, { soldeDebutMois: parseNum(input.value) });
+      const cfgSd = document.getElementById("cfgSoldeDebut");
+      if (cfgSd) cfgSd.value = parseNum(input.value) || "";
+      rerender();
+    };
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", ev => {
+      if (ev.key === "Enter")  { ev.preventDefault(); input.blur(); }
+      if (ev.key === "Escape") { input.removeEventListener("blur", save); rerender(); }
+    });
+    return;
+  }
+
   const existing = loadEntries(KEYS.tresoV2).find(r => r.date === date);
   const debitRefMap = { debit1Amount:"D1", debit2Amount:"D2", debit3Amount:"D3", debit4Amount:"D4" };
 
@@ -2043,6 +2121,26 @@ document.getElementById("dmForm")?.addEventListener("submit", e => {
   saveEntries(KEYS.dm, rows);
   document.getElementById("dmForm").reset();
   renderDemarque();
+});
+
+// --- Solde début de mois (bouton OK du dashboard) ---
+document.getElementById("cfgSoldeSave")?.addEventListener("click", () => {
+  const m = document.getElementById("monthPicker")?.value || currentMonth();
+  setMonthConfig(m, { soldeDebutMois: parseNum(document.getElementById("cfgSoldeDebut")?.value) });
+  rerender();
+});
+
+// --- Colonnes personnalisées ---
+document.getElementById("addColBtn")?.addEventListener("click", () => {
+  const input = document.getElementById("newColLabel");
+  const label = String(input?.value || "").trim();
+  if (!label) { input?.focus(); return; }
+  addCustomColumn(label);
+  if (input) input.value = "";
+  rerender();
+});
+document.getElementById("newColLabel")?.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); document.getElementById("addColBtn")?.click(); }
 });
 
 // --- Horizon controls ---
