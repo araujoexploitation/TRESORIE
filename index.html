@@ -37,6 +37,13 @@
               <button id="cfgSoldeSave" type="button" style="padding:5px 12px;font-size:12px">OK</button>
             </label>
             <button id="exportBtn" type="button">Exporter CSV</button>
+            <label style="font-size:13px;margin:0;display:flex;align-items:center;gap:6px">
+              Prev CA :
+              <select id="caPrevDays" style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+                <option value="15">15 derniers j.</option>
+                <option value="30">30 derniers j.</option>
+              </select>
+            </label>
           </div>
         </div>
         <div id="kpis" class="kpis"></div>
@@ -132,35 +139,16 @@
         </div>
       </section>
 
-      <!-- Saisie manuelle et import -->
+      <!-- Import -->
       <section class="card">
-        <h2>Saisie manuelle / Import</h2>
+        <h2>Import TR</h2>
         <div class="row" style="margin-bottom:10px;flex-wrap:wrap;gap:8px;">
           <label style="margin:0;font-size:12px;">Import Excel TR
             <input id="trImportXlsx" type="file" accept=".xlsx,.xls,.csv" style="margin-left:6px;">
           </label>
           <button id="trKeepFirstBtn" type="button">Supprimer doublons</button>
         </div>
-        <form id="tr-form" class="grid">
-          <label>Date<input id="trDate" type="date" required></label>
-          <label>Fournisseur
-            <select id="trProvider">
-              <option value="BIMPLI">BIMPLI</option>
-              <option value="EDENRED">EDENRED</option>
-              <option value="PLUXEE">PLUXEE</option>
-              <option value="UP COOP">UP COOP</option>
-              <option value="SOGEC">SOGEC</option>
-              <option value="HIGH CO DATA">HIGH CO DATA</option>
-              <option value="SCANCOUPON">SCANCOUPON</option>
-              <option value="INCONNU">INCONNU</option>
-            </select>
-          </label>
-          <label>Reference<input id="trRef" type="text" placeholder="Ref bordereau"></label>
-          <label>Montant (EUR)<input id="trAmount" type="number" step="0.01" min="0" required></label>
-          <label class="wide">Source<input id="trSource" type="text" value="Saisie manuelle"></label>
-          <button type="submit">Ajouter TR</button>
-        </form>
-        <div style="margin-top:10px;">
+        <div>
           <input id="trSearch" type="text" placeholder="Rechercher..." style="width:100%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;">
         </div>
       </section>

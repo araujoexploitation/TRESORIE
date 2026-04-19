@@ -202,6 +202,16 @@ function setHorizonDays(days) {
   saveConfig(cfg);
 }
 
+function getCaPrevDays() {
+  const cfg = loadConfig();
+  return parseInt(cfg._caPrevDays || 15, 10);
+}
+function setCaPrevDays(days) {
+  const cfg = loadConfig();
+  cfg._caPrevDays = parseInt(days, 10);
+  saveConfig(cfg);
+}
+
 function getPrevMonthKey(monthKey) {
   const [y, m] = monthKey.split("-").map(Number);
   if (m === 1) return `${y - 1}-12`;
@@ -295,19 +305,52 @@ function renderTableHeaders() {
   ).join("");
   thead.innerHTML =
     `<th>Date</th>
-     <th class="col-debit" id="th-debit1">${d.debit1Label||"Direct"}</th>
-     <th class="col-debit" id="th-debit2">${d.debit2Label||"Com CB"}</th>
-     <th class="col-debit" id="th-debit3">${d.debit3Label||"CRF"}</th>
-     <th class="col-debit" id="th-debit4">${d.debit4Label||"Divers"}</th>
+     <th class="col-debit th-editable" id="th-debit1" title="Cliquer pour renommer">${d.debit1Label||"Direct"}</th>
+     <th class="col-debit th-editable" id="th-debit2" title="Cliquer pour renommer">${d.debit2Label||"Com CB"}</th>
+     <th class="col-debit th-editable" id="th-debit3" title="Cliquer pour renommer">${d.debit3Label||"CRF"}</th>
+     <th class="col-debit th-editable" id="th-debit4" title="Cliquer pour renommer">${d.debit4Label||"Divers"}</th>
      ${customTh}
      <th class="col-credit">CA</th>
      <th class="col-credit">N-1</th>
-     <th class="col-credit" id="th-credit2">${d.credit2Label||"Credit+"}</th>
-     <th class="col-credit" id="th-credit3">${d.credit3Label||"Depot"}</th>
+     <th class="col-credit th-editable" id="th-credit2" title="Cliquer pour renommer">${d.credit2Label||"Credit+"}</th>
+     <th class="col-credit th-editable" id="th-credit3" title="Cliquer pour renommer">${d.credit3Label||"Depot"}</th>
      <th class="col-solde">Solde J</th>
      <th>Net J</th>
      <th>Note</th>
      <th></th>`;
+
+  const editable = [
+    { id: "th-debit1", field: "debit1Label" },
+    { id: "th-debit2", field: "debit2Label" },
+    { id: "th-debit3", field: "debit3Label" },
+    { id: "th-debit4", field: "debit4Label" },
+    { id: "th-credit2", field: "credit2Label" },
+    { id: "th-credit3", field: "credit3Label" },
+  ];
+  editable.forEach(({ id, field }) => {
+    const th = document.getElementById(id);
+    if (!th) return;
+    th.addEventListener("click", () => {
+      if (th.querySelector("input")) return;
+      const defs  = getDefaults();
+      const input = document.createElement("input");
+      input.type  = "text";
+      input.value = defs[field] || "";
+      input.style.cssText = "width:70px;padding:2px 4px;font-size:12px;border:1px solid #0c4a8a;border-radius:4px";
+      th.textContent = ""; th.appendChild(input);
+      input.focus(); input.select();
+      const save = () => {
+        const v = input.value.trim();
+        if (v) { const cfg = loadConfig(); cfg._defaults = { ...getDefaults(), [field]: v }; saveConfig(cfg); }
+        rerender();
+      };
+      input.addEventListener("blur", save);
+      input.addEventListener("keydown", ev => {
+        if (ev.key === "Enter")  { ev.preventDefault(); input.blur(); }
+        if (ev.key === "Escape") { input.removeEventListener("blur", save); rerender(); }
+      });
+    });
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -405,7 +448,7 @@ function getSoldeToday() {
 function forecastCAForDate(iso) {
   const today     = todayISO();
   const targetDow = dayOfWeek(iso);
-  const cutoff    = addDays(today, -90);
+  const cutoff    = addDays(today, -getCaPrevDays());
 
   const historical = loadEntries(KEYS.tresoV2)
     .filter(r => r.date >= cutoff && r.date < today && dayOfWeek(r.date) === targetDow)
@@ -1192,15 +1235,22 @@ function renderTR() {
     : allRows;
 
   const byProvider = {};
-  allRows.forEach(r => { byProvider[r.provider] = (byProvider[r.provider] || 0) + parseNum(r.amount); });
-  trKpis.innerHTML = Object.entries(byProvider).sort((a,b)=>b[1]-a[1]).map(([p,v]) =>
-    `<div class="kpi"><div class="v">${eur(v)}</div><div class="l">${p}</div></div>`
+  allRows.forEach(r => {
+    const p = r.provider || "INCONNU";
+    if (!byProvider[p]) byProvider[p] = { total: 0, count: 0 };
+    byProvider[p].total += parseNum(r.amount);
+    byProvider[p].count++;
+  });
+  trKpis.innerHTML = Object.entries(byProvider).sort((a,b)=>b[1].total-a[1].total).map(([p,v]) =>
+    `<div class="kpi"><div class="v">${eur(v.total)}</div><div class="l">${p} <span style="font-size:11px;color:#64748b">(${v.count} TR)</span></div></div>`
   ).join("") || `<div class="kpi"><div class="v">0 EUR</div><div class="l">Aucune donnee</div></div>`;
 
   const dupMap = trDuplicateMap(allRows);
+  const PROV_OPTIONS = ["BIMPLI","EDENRED","PLUXEE","UP COOP","SOGEC","HIGH CO DATA","SCANCOUPON","INCONNU"];
   trTableBody.innerHTML = rows.map(r => {
     const key   = `${(r.provider||"").toUpperCase()}|${normalizeRef(r.ref)}|${normalizeDate(r.date)}|${Number(r.amount||0).toFixed(2)}`;
     const isDup = (dupMap.get(key)||0) > 1;
+    const provOpts = PROV_OPTIONS.map(p => `<option value="${p}"${p===r.provider?" selected":""}>${p}</option>`).join("");
     return `<tr>
       <td>${r.date||"-"}</td>
       <td><strong>${r.provider||"-"}</strong></td>
@@ -1208,9 +1258,24 @@ function renderTR() {
       <td>${eur(r.amount)}</td>
       <td>${r.source||"-"}</td>
       <td class="${isDup?"danger":"ok"}">${isDup?"DOUBLON":"OK"}</td>
-      <td><button type="button" data-deltr="${r.id}">Suppr.</button></td>
+      <td style="white-space:nowrap">
+        <button type="button" class="btn-tr-edit" data-id="${r.id}" style="background:#0c4a8a;color:#fff;border:none;padding:3px 9px;border-radius:6px;cursor:pointer;font-size:12px;margin-right:4px">Edit</button>
+        <button type="button" data-deltr="${r.id}">Suppr.</button>
+      </td>
+    </tr>
+    <tr id="tredit-${r.id}" style="display:none;background:#f0f9ff">
+      <td colspan="7">
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:8px 4px">
+          <label style="font-size:12px;margin:0">Date<br><input type="date" id="tred-date-${r.id}" value="${r.date||""}" style="padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px"></label>
+          <label style="font-size:12px;margin:0">Fournisseur<br><select id="tred-prov-${r.id}" style="padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px">${provOpts}</select></label>
+          <label style="font-size:12px;margin:0">Reference<br><input type="text" id="tred-ref-${r.id}" value="${r.ref||""}" style="padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;width:120px"></label>
+          <label style="font-size:12px;margin:0">Montant (EUR)<br><input type="number" id="tred-amt-${r.id}" step="0.01" min="0" value="${parseNum(r.amount).toFixed(2)}" style="padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;width:90px"></label>
+          <button type="button" class="btn-tr-save" data-id="${r.id}" style="padding:5px 14px">Enregistrer</button>
+          <button type="button" class="btn-tr-cancel" data-id="${r.id}" style="padding:5px 14px;background:#94a3b8">Annuler</button>
+        </div>
+      </td>
     </tr>`;
-  }).join("") || `<tr><td colspan="7" class="muted-val" style="text-align:center;padding:16px">Aucun TR — saisissez ou scannez un bordereau</td></tr>`;
+  }).join("") || `<tr><td colspan="7" class="muted-val" style="text-align:center;padding:16px">Aucun TR — scannez un bordereau ou importez un fichier</td></tr>`;
 
   trTableBody.querySelectorAll("button[data-deltr]").forEach(b =>
     b.addEventListener("click", () => {
@@ -1218,6 +1283,32 @@ function renderTR() {
       renderTR();
     })
   );
+  trTableBody.querySelectorAll(".btn-tr-edit").forEach(b => {
+    b.addEventListener("click", () => {
+      const row = document.getElementById(`tredit-${b.dataset.id}`);
+      if (row) row.style.display = row.style.display === "none" ? "" : "none";
+    });
+  });
+  trTableBody.querySelectorAll(".btn-tr-cancel").forEach(b => {
+    b.addEventListener("click", () => {
+      const row = document.getElementById(`tredit-${b.dataset.id}`);
+      if (row) row.style.display = "none";
+    });
+  });
+  trTableBody.querySelectorAll(".btn-tr-save").forEach(b => {
+    b.addEventListener("click", () => {
+      const id  = b.dataset.id;
+      const all = loadEntries(KEYS.tr);
+      const i   = all.findIndex(x => String(x.id) === id);
+      if (i < 0) return;
+      all[i].date     = document.getElementById(`tred-date-${id}`)?.value || all[i].date;
+      all[i].provider = document.getElementById(`tred-prov-${id}`)?.value || all[i].provider;
+      all[i].ref      = document.getElementById(`tred-ref-${id}`)?.value  || "";
+      all[i].amount   = parseNum(document.getElementById(`tred-amt-${id}`)?.value);
+      saveEntries(KEYS.tr, all);
+      renderTR();
+    });
+  });
   renderTRByMonth();
 }
 
@@ -1249,15 +1340,29 @@ function renderTRByMonth() {
     return `<th style="text-align:right;font-size:12px">${MNAMES[mo]} ${m.slice(2,4)}</th>`;
   }).join("");
 
+  // Count per provider × month
+  const counts = {};
+  providers.forEach(p => { counts[p] = {}; months.forEach(m => { counts[p][m] = 0; }); });
+  all.forEach(r => {
+    const p = r.provider || "INCONNU";
+    const m = monthKeyOf(r.date || "");
+    if (months.includes(m) && counts[p]) counts[p][m] = (counts[p][m] || 0) + 1;
+  });
+  const rowCounts = {};
+  providers.forEach(p => { rowCounts[p] = months.reduce((s, m) => s + (counts[p][m] || 0), 0); });
+
   const bodyRows = providers
     .filter(p => rowTotals[p] > 0)
     .map(p => `<tr>
       <td><strong>${p}</strong></td>
-      ${months.map(m => `<td style="text-align:right">${totals[p][m] > 0 ? eur(totals[p][m]) : "<span style='color:#cbd5e1'>—</span>"}</td>`).join("")}
-      <td style="text-align:right;font-weight:600">${eur(rowTotals[p])}</td>
+      ${months.map(m => `<td style="text-align:right">${totals[p][m] > 0
+        ? `${eur(totals[p][m])}<br><span style="font-size:10px;color:#64748b">${counts[p][m]} TR</span>`
+        : "<span style='color:#cbd5e1'>—</span>"}</td>`).join("")}
+      <td style="text-align:right;font-weight:600">${eur(rowTotals[p])}<br><span style="font-size:11px;color:#64748b">${rowCounts[p]} TR</span></td>
     </tr>`).join("");
 
   const grandTotal = providers.reduce((s, p) => s + rowTotals[p], 0);
+  const grandCount = providers.reduce((s, p) => s + rowCounts[p], 0);
 
   container.innerHTML = `<div class="table-wrap"><table style="font-size:13px;width:100%">
     <thead><tr>
@@ -1267,7 +1372,7 @@ function renderTRByMonth() {
     <tr style="background:#f1f5f9;border-top:2px solid #334155">
       <td><strong>Total</strong></td>
       ${months.map(m => `<td style="text-align:right;font-weight:600">${colTotals[m] > 0 ? eur(colTotals[m]) : ""}</td>`).join("")}
-      <td style="text-align:right;font-weight:700">${eur(grandTotal)}</td>
+      <td style="text-align:right;font-weight:700">${eur(grandTotal)}<br><span style="font-size:11px;color:#64748b">${grandCount} TR</span></td>
     </tr></tbody>
   </table></div>`;
 }
@@ -1608,9 +1713,11 @@ function renderImpayes() {
       const i   = all.findIndex(x => String(x.id) === id);
       if (i < 0) return;
       if (!all[i].payments) all[i].payments = [];
-      all[i].payments.push({ id: `pay-${Date.now()}-${Math.floor(Math.random()*1000)}`, date, amount, motif });
+      const dlLabel   = `Remb. ${all[i].creditor}${motif ? " - " + motif : ""}`;
+      const dlId      = addDebitLine(date, dlLabel, amount);
+      all[i].payments.push({ id: `pay-${Date.now()}-${Math.floor(Math.random()*1000)}`, date, amount, motif, debitLineId: dlId });
       saveEntries(KEYS.impayes, all);
-      renderImpayes();
+      rerender();
     };
   });
   tbody.querySelectorAll(".btn-imp-del").forEach(b => {
@@ -1625,10 +1732,15 @@ function renderImpayes() {
       const all = loadEntries(KEYS.impayes);
       const i   = all.findIndex(x => String(x.id) === b.dataset.id);
       if (i >= 0) {
+        const pay = (all[i].payments||[]).find(p => String(p.id) === b.dataset.pid);
+        if (pay?.debitLineId) {
+          saveEntries(KEYS.debitLines, loadEntries(KEYS.debitLines).filter(l => l.id !== pay.debitLineId));
+          saveEntries(KEYS.catEntries, loadEntries(KEYS.catEntries).filter(e => e.sourceRef !== `DL-${pay.debitLineId}`));
+        }
         all[i].payments = (all[i].payments||[]).filter(p => String(p.id) !== b.dataset.pid);
         saveEntries(KEYS.impayes, all);
       }
-      renderImpayes();
+      rerender();
     };
   });
 }
@@ -1828,16 +1940,16 @@ document.getElementById("cashDepositForm")?.addEventListener("submit", e => {
 });
 
 // --- Prélèvements additionnels (bouton visible) ---
-function addDebitLine(date, label, amount) {
-  if (!date || !label || amount <= 0) return false;
-  const id    = `dl-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+function addDebitLine(date, label, amount, forceId) {
+  if (!date || !label || amount <= 0) return null;
+  const id    = forceId || `dl-${Date.now()}-${Math.floor(Math.random()*1000)}`;
   const lines = loadEntries(KEYS.debitLines);
-  lines.push({ id, date, label, amount });
+  if (!lines.find(l => l.id === id)) lines.push({ id, date, label, amount });
   saveEntries(KEYS.debitLines, lines);
   const cat = suggestCategory(label);
   ensureCategory(cat);
   upsertAutoCategoryEntry({ id:`cat-dl-${id}`, sourceRef:`DL-${id}`, date, category:cat, source:"Prelevement", amount, label });
-  return true;
+  return id;
 }
 
 document.getElementById("dlAddBtnVisible")?.addEventListener("click", () => {
@@ -2123,6 +2235,12 @@ document.getElementById("dmForm")?.addEventListener("submit", e => {
   renderDemarque();
 });
 
+// --- Prévisions CA ---
+document.getElementById("caPrevDays")?.addEventListener("change", e => {
+  setCaPrevDays(parseInt(e.target.value, 10));
+  rerender();
+});
+
 // --- Solde début de mois (bouton OK du dashboard) ---
 document.getElementById("cfgSoldeSave")?.addEventListener("click", () => {
   const m = document.getElementById("monthPicker")?.value || currentMonth();
@@ -2191,4 +2309,5 @@ bootDefaultCategories();
 bootTRSeed();
 migrateV1toV2();
 prefillFormDefaults();
+_setVal("caPrevDays", getCaPrevDays());
 rerender();
