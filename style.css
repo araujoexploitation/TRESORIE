@@ -216,3 +216,10 @@ kbd{display:inline-block;background:#f1f5f9;border:1px solid #cbd5e1;border-radi
 .scan-result-preview h3{margin:0 0 10px;font-size:15px;color:#6b21a8}
 .scan-result-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
 .scan-result-actions{display:flex;gap:10px;margin-top:10px}
+
+/* Impayes */
+tr.row-settled td{opacity:.55;text-decoration:line-through}
+tr.row-overdue{background:#fff5f5}
+tr.row-overdue td:first-child{color:#b91c1c;font-weight:700}
+.btn-imp-pay{background:#7c3aed;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px}
+.btn-imp-pay:hover{background:#6d28d9}

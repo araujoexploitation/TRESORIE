@@ -16,7 +16,6 @@
 
     <nav class="tabs">
       <button class="tab active" data-tab="treso">Tresorerie</button>
-      <button class="tab" data-tab="horizon">Horizon 60j</button>
       <button class="tab" data-tab="tr">TR fournisseurs</button>
       <button class="tab" data-tab="echeances">Echeances / Impayes</button>
       <button class="tab" data-tab="analyse">Analyse categories</button>
@@ -57,6 +56,7 @@
           <label>CA &euro;<input id="qCa" type="number" step="0.01" min="0" placeholder="0.00"></label>
           <label>Com CB &euro;<input id="qComCb" type="number" step="0.01" min="0" placeholder="0.00"></label>
           <label>Depot especes &euro;<input id="qDepot" type="number" step="0.01" min="0" placeholder="0.00"></label>
+          <label title="Part du CA encaissee en especes, pas encore versee en banque">Especes &euro;<input id="qEspeces" type="number" step="0.01" min="0" placeholder="0.00"></label>
           <label class="wide-label">Note<input id="qNote" type="text" placeholder="Optionnel"></label>
           <button type="submit">Enregistrer</button>
         </form>
@@ -146,85 +146,6 @@
               </tr>
             </thead>
             <tbody></tbody>
-          </table>
-        </div>
-      </section>
-
-    </section>
-
-    <!-- ══════════════════════════════════════════════════════ HORIZON ══ -->
-    <section class="panel" id="panel-horizon">
-
-      <section class="card" id="horizon-controls-card">
-        <h2>Horizon de tresorerie projete</h2>
-        <div class="horizon-controls-row">
-          <label>Periode
-            <select id="horizonDays">
-              <option value="30">30 jours</option>
-              <option value="60" selected>60 jours</option>
-              <option value="90">90 jours</option>
-              <option value="120">120 jours</option>
-            </select>
-          </label>
-          <label>Seuil alerte (EUR)
-            <input id="horizonThreshold" type="number" step="100" value="2000" min="0">
-          </label>
-          <button type="button" id="horizonAutoProjectBtn">Auto-projeter CA</button>
-          <button type="button" id="horizonClearBtn" class="btn-danger">Effacer projections</button>
-        </div>
-        <p class="muted" style="margin:8px 0 0;font-size:12px;">
-          CA projete = moyenne du meme jour de semaine sur 90 jours d'historique (tendance du mois appliquee).
-          Cliquez sur une cellule CA pour modifier manuellement.
-        </p>
-      </section>
-
-      <section class="card metrics">
-        <div id="horizonKpis" class="kpis horizon-kpis"></div>
-      </section>
-
-      <div id="horizonAlerts"></div>
-
-      <section class="card">
-        <h2>Courbe de solde projete</h2>
-        <div class="sparkline-wrap">
-          <svg id="horizonSparkline" width="900" height="160" viewBox="0 0 900 160"></svg>
-        </div>
-        <div class="spark-legend">
-          <span class="spark-legend-item spark-hist">Historique</span>
-          <span class="spark-legend-item spark-proj">Projection CA</span>
-          <span class="spark-legend-item spark-thr">Seuil alerte</span>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Detail jour par jour</h2>
-        <div class="table-wrap">
-          <table id="horizonTable">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Jour</th>
-                <th>CA (editable)</th>
-                <th class="col-credit">Credits</th>
-                <th class="col-debit">Debits / Echeances</th>
-                <th>Net J</th>
-                <th class="col-solde">Solde proj.</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="horizonBody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Factures anticipees sur la periode</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Date echeance</th><th>Fournisseur</th><th>Objet</th><th>Montant restant</th><th>Regularite</th></tr>
-            </thead>
-            <tbody id="horizonEchBody"></tbody>
           </table>
         </div>
       </section>
@@ -327,6 +248,11 @@
       </section>
 
       <section class="card">
+        <h2>Recap par fournisseur et par mois</h2>
+        <div id="trByMonthTable"></div>
+      </section>
+
+      <section class="card">
         <div class="row">
           <h2>Journal TR</h2>
           <button id="trExportBtn" type="button">Exporter CSV</button>
@@ -344,8 +270,31 @@
 
     <!-- ═══════════════════════════════════════════════════ ECHEANCES ══ -->
     <section class="panel" id="panel-echeances">
+
+      <!-- Tableau impayes / dettes avec suivi des remboursements -->
       <section class="card">
-        <h2>Nouvelle echeance</h2>
+        <h2>Suivi impayes / dettes</h2>
+        <section class="card metrics" style="margin:0 0 14px">
+          <div id="impayesKpis" class="kpis"></div>
+        </section>
+        <form id="impayeForm" class="grid">
+          <label>Date<input id="impDate" type="date" required></label>
+          <label>Creancier<input id="impCreditor" type="text" placeholder="CRF, My Pie, Loyer..." required></label>
+          <label>Objet<input id="impLabel" type="text" placeholder="Facture avril, remb. divers..." required></label>
+          <label>Montant total (&euro;)<input id="impAmount" type="number" step="0.01" min="0" required></label>
+          <label class="wide">Note<input id="impNote" type="text" placeholder="Optionnel"></label>
+          <button type="submit">Ajouter impaye</button>
+        </form>
+        <div class="table-wrap" style="margin-top:14px">
+          <table>
+            <thead><tr><th>Date</th><th>Creancier</th><th>Objet</th><th>Total</th><th>Rembourse</th><th>Reste</th><th>Statut</th><th></th></tr></thead>
+            <tbody id="impayesBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Nouvelle echeance recurrente</h2>
         <form id="echForm" class="grid">
           <label>Date echeance<input id="echDueDate" type="date" required></label>
           <label>Fournisseur<input id="echVendor" type="text" required></label>

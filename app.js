@@ -17,7 +17,8 @@ const KEYS = {
   cp:            "tresorerie_coupons_entries_v1",
   dm:            "tresorerie_demarque_entries_v1",
   debitLines:    "tresorerie_debit_lines_v1",
-  caProjections: "tresorerie_ca_projections_v1"
+  caProjections: "tresorerie_ca_projections_v1",
+  impayes:       "tresorerie_impayes_v1"
 };
 
 const TR_SEED = [
@@ -730,6 +731,7 @@ function renderSparkline(rows, threshold) {
 function renderKpis(monthKey) {
   const kpisEl = document.getElementById("kpis");
   if (!kpisEl) return;
+  const allV2       = loadEntries(KEYS.tresoV2);
   const rows        = getMonthRows(monthKey);
   const cfg         = getMonthConfig(monthKey);
   const lastRow     = rows[rows.length - 1];
@@ -745,14 +747,30 @@ function renderKpis(monthKey) {
   const cls = v     => v < 0 ? "danger" : v < threshold ? "warn" : "ok";
   const fmt = (v)   => (v >= 0 ? "+" : "") + eur(v);
 
-  kpisEl.innerHTML = [
+  // Espèces non versées = total espèces saisies - total dépôts espèces
+  const totalEspeces = allV2.reduce((s, r) => s + parseNum(r.especes), 0);
+  const totalDepots  = allV2.reduce((s, r) => s + parseNum(r.credit3Amount), 0);
+  const especesNV    = Math.max(0, totalEspeces - totalDepots);
+
+  // Impayes restants
+  const impayes      = loadEntries(KEYS.impayes);
+  const totalImpayes = impayes.reduce((s, r) => {
+    const paid = (r.payments||[]).reduce((ss, p) => ss + parseNum(p.amount), 0);
+    return s + Math.max(0, parseNum(r.totalAmount) - paid);
+  }, 0);
+
+  const kpiList = [
     { label: "Solde en banque (estime)", value: eur(soldeActuel), cls: cls(soldeActuel), big: true },
     { label: "CA cumule du mois",        value: eur(totalCA) },
     { label: "Total debits",             value: eur(totalDebits) },
     { label: "Total credits",            value: eur(totalCreds) },
     { label: "Ecart vs budget",          value: ecartB  !== null ? fmt(ecartB)  : "Budget non defini", cls: ecartB  !== null ? cls(ecartB)  : "muted" },
     { label: "Ecart vs N-1",             value: ecartN1 !== null ? fmt(ecartN1) : "N-1 non saisi",     cls: ecartN1 !== null ? cls(ecartN1) : "muted" }
-  ].map(c =>
+  ];
+  if (especesNV > 0) kpiList.push({ label: "Especes en caisse (non versees)", value: eur(especesNV), cls: "warn" });
+  if (totalImpayes > 0) kpiList.push({ label: "Impayes restants", value: eur(totalImpayes), cls: "danger" });
+
+  kpisEl.innerHTML = kpiList.map(c =>
     `<div class="kpi${c.big?" kpi-hero":""}"><div class="v ${c.cls||""}">${c.value}</div><div class="l">${c.label}</div></div>`
   ).join("");
 }
@@ -774,9 +792,11 @@ function renderTable(monthKey) {
   setTh("th-credit2", d.credit2Label || "Credit+");
   setTh("th-credit3", d.credit3Label || "Depot");
 
-  const E = (f, d, t) => `data-field="${f}" data-date="${d}" data-type="${t}"`;
+  const E  = (f, dd, t) => `data-field="${f}" data-date="${dd}" data-type="${t}"`;
+  const dv = (v) => v ? eur(v) : "";
 
-  tableBody.innerHTML = rows.map(r => {
+  // ── Lignes du mois sélectionné ──
+  let html = rows.map(r => {
     const isFuture = r.date > today;
     const isToday  = r.date === today;
     const isEmpty  = !r._exists;
@@ -798,7 +818,6 @@ function renderTable(monthKey) {
     const netClass   = r.netJour < 0 ? "danger" : r.netJour > 0 ? "ok" : "";
     const shortNote  = r.note ? (r.note.length > 28 ? r.note.slice(0, 28) + "\u2026" : r.note) : "";
     const delBtn     = r._exists ? `<button data-del="${r.date}" type="button">\u00d7</button>` : "";
-    const dv         = (v) => v ? eur(v) : "";
 
     const mainRow = `<tr class="${classes}" data-row-date="${r.date}">
       <td class="date-cell"><strong>${r.date.slice(8)}</strong></td>
@@ -826,6 +845,93 @@ function renderTable(monthKey) {
 
     return divider + mainRow + subRows;
   }).join("");
+
+  // ── Extension horizon : aujourd'hui+1 → aujourd'hui+60, au-delà du mois affiché ──
+  if (monthKey === currentMonth()) {
+    const DAY_NAMES = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+    const lastMonthDate = rows[rows.length - 1]?.date || today;
+    const endDate       = addDays(today, 60);
+
+    if (lastMonthDate < endDate) {
+      // Calcul horizon pour la chaîne de solde
+      const hRows = computeHorizonRows(70);
+      const hMap  = new Map(hRows.map(r => [r.date, r]));
+      const allV2 = loadEntries(KEYS.tresoV2);
+      const realMap  = new Map(allV2.map(r => [r.date, r]));
+      const allDL    = loadEntries(KEYS.debitLines);
+
+      let prevMk = monthKey;
+      let cursor = addDays(lastMonthDate, 1);
+      const MONTHS = ["Jan","Fev","Mar","Avr","Mai","Jun","Jul","Aou","Sep","Oct","Nov","Dec"];
+
+      while (cursor <= endDate) {
+        const mk = monthKeyOf(cursor);
+        if (mk !== prevMk) {
+          const [y, m] = mk.split("-").map(Number);
+          html += `<tr class="month-boundary"><td colspan="13">${MONTHS[m-1]} ${y} — Projections</td></tr>`;
+          prevMk = mk;
+        }
+
+        const h    = hMap.get(cursor);
+        const real = realMap.get(cursor);
+        const echs = h?.echs || [];
+
+        let ca, debit1, net, balance;
+        let isForecast = false, hasManual = false;
+
+        if (real) {
+          const dlLines = allDL.filter(l => l.date === cursor);
+          const comp    = computeRow(real, dlLines);
+          ca     = parseNum(real.ca);
+          debit1 = real.debit1Amount || 0;
+          net    = comp.netJour;
+        } else {
+          const manual = getManualProjection(cursor);
+          ca         = manual !== null ? manual : forecastCAForDate(cursor);
+          isForecast = manual === null;
+          hasManual  = manual !== null;
+          debit1 = echs.reduce((s, e) => s + Math.max(0, parseNum(e.amount) - parseNum(e.paidAmount)), 0);
+          net    = ca - debit1;
+        }
+        balance = h?.balance ?? 0;
+
+        const soldeClass = balance < 0 ? "danger" : balance < threshold ? "warn" : "ok";
+        const netClass   = net < 0 ? "danger" : net > 0 ? "ok" : "";
+        const dayName    = DAY_NAMES[dayOfWeek(cursor)];
+        const echNote    = echs.map(e => e.vendor || e.label || "ECH").join(", ");
+        const shortNote  = echNote.length > 28 ? echNote.slice(0, 28) + "\u2026" : echNote;
+        const caTag      = hasManual
+          ? `<span class="tag projected" title="Saisi manuellement" style="font-size:9px;padding:1px 4px">M</span>`
+          : isForecast && ca > 0
+            ? `<span class="tag projected" title="Prevision historique" style="font-size:9px;padding:1px 4px">P</span>` : "";
+
+        const rowCls = [
+          real ? "preview-row" : "preview-row row-projected",
+          balance < 0 ? "row-danger" : balance < threshold ? "row-warning" : ""
+        ].filter(Boolean).join(" ");
+
+        html += `<tr class="${rowCls}" data-row-date="${cursor}">
+          <td class="date-cell"><strong>${cursor.slice(8)}</strong> <span style="font-size:10px;color:#94a3b8">${dayName}</span></td>
+          <td class="col-debit editable" ${E("debit1Amount", cursor, "number")}>${dv(debit1)}</td>
+          <td class="col-debit editable" ${E("debit2Amount", cursor, "number")}>${real ? dv(real.debit2Amount) : ""}</td>
+          <td class="col-debit editable" ${E("debit3Amount", cursor, "number")}>${real ? dv(real.debit3Amount) : ""}</td>
+          <td class="col-debit editable" ${E("debit4Amount", cursor, "number")}>${real ? dv(real.debit4Amount) : ""}</td>
+          <td class="col-credit editable" ${E("ca", cursor, "number")}>${ca > 0 ? eur(ca) : ""} ${caTag}</td>
+          <td class="col-credit muted-val editable" ${E("caN1", cursor, "number")}></td>
+          <td class="col-credit editable" ${E("credit2Amount", cursor, "number")}>${real ? dv(real.credit2Amount) : ""}</td>
+          <td class="col-credit editable" ${E("credit3Amount", cursor, "number")}>${real ? dv(real.credit3Amount) : ""}</td>
+          <td class="col-solde ${soldeClass}"><strong>${eur(balance)}</strong></td>
+          <td class="${netClass}" style="font-size:11px">${net !== 0 ? (net > 0 ? "+" : "") + eur(net) : ""}</td>
+          <td class="note-cell editable" ${E("note", cursor, "text")} title="${echNote}">${shortNote}</td>
+          <td class="del-cell">${real ? `<button data-del="${cursor}" type="button">\u00d7</button>` : ""}</td>
+        </tr>`;
+
+        cursor = addDays(cursor, 1);
+      }
+    }
+  }
+
+  tableBody.innerHTML = html;
 
   tableBody.querySelectorAll("button[data-del]").forEach(b =>
     b.addEventListener("click", () => { deleteEntry(b.dataset.del); rerender(); })
@@ -858,7 +964,8 @@ function startCellEdit(td, tableBody) {
   input.type      = type;
   if (type === "number") { input.step = "0.01"; input.min = "0"; }
   input.value     = type === "number"
-    ? (existing ? parseNum(existing[field]) || "" : "")
+    ? (existing ? parseNum(existing[field]) || ""
+       : field === "ca" ? (getManualProjection(date) || forecastCAForDate(date) || "") : "")
     : (existing ? existing[field] || "" : "");
   input.className = "cell-edit-input";
   td.textContent  = "";
@@ -966,7 +1073,6 @@ function switchTab(tabId) {
   const panels = [...document.querySelectorAll(".panel")];
   tabs.forEach(b   => b.classList.toggle("active", b.dataset.tab === tabId));
   panels.forEach(p => p.classList.toggle("active", p.id === `panel-${tabId}`));
-  if (tabId === "horizon") renderHorizon();
 }
 
 // ─── SECTION 7 : TR FOURNISSEURS ─────────────────────────────────────────────
@@ -1034,6 +1140,58 @@ function renderTR() {
       renderTR();
     })
   );
+  renderTRByMonth();
+}
+
+function renderTRByMonth() {
+  const container = document.getElementById("trByMonthTable");
+  if (!container) return;
+  const all = loadEntries(KEYS.tr);
+  if (!all.length) { container.innerHTML = `<p class="muted" style="font-size:13px">Aucune donnee TR.</p>`; return; }
+
+  const months    = [...new Set(all.map(r => monthKeyOf(r.date || "")))].filter(Boolean).sort().slice(-12);
+  const providers = [...new Set(all.map(r => r.provider || "INCONNU"))].sort();
+  const MNAMES    = ["","Jan","Fev","Mar","Avr","Mai","Jun","Jul","Aou","Sep","Oct","Nov","Dec"];
+
+  // Totaux croisés
+  const totals = {};
+  providers.forEach(p => { totals[p] = {}; months.forEach(m => { totals[p][m] = 0; }); });
+  all.forEach(r => {
+    const p = r.provider || "INCONNU";
+    const m = monthKeyOf(r.date || "");
+    if (months.includes(m) && totals[p]) totals[p][m] = (totals[p][m] || 0) + parseNum(r.amount);
+  });
+  const rowTotals = {};
+  providers.forEach(p => { rowTotals[p] = months.reduce((s, m) => s + (totals[p][m] || 0), 0); });
+  const colTotals = {};
+  months.forEach(m => { colTotals[m] = providers.reduce((s, p) => s + (totals[p][m] || 0), 0); });
+
+  const mHeaders = months.map(m => {
+    const [, mo] = m.split("-").map(Number);
+    return `<th style="text-align:right;font-size:12px">${MNAMES[mo]} ${m.slice(2,4)}</th>`;
+  }).join("");
+
+  const bodyRows = providers
+    .filter(p => rowTotals[p] > 0)
+    .map(p => `<tr>
+      <td><strong>${p}</strong></td>
+      ${months.map(m => `<td style="text-align:right">${totals[p][m] > 0 ? eur(totals[p][m]) : "<span style='color:#cbd5e1'>—</span>"}</td>`).join("")}
+      <td style="text-align:right;font-weight:600">${eur(rowTotals[p])}</td>
+    </tr>`).join("");
+
+  const grandTotal = providers.reduce((s, p) => s + rowTotals[p], 0);
+
+  container.innerHTML = `<div class="table-wrap"><table style="font-size:13px;width:100%">
+    <thead><tr>
+      <th>Fournisseur</th>${mHeaders}<th style="text-align:right">Total</th>
+    </tr></thead>
+    <tbody>${bodyRows}
+    <tr style="background:#f1f5f9;border-top:2px solid #334155">
+      <td><strong>Total</strong></td>
+      ${months.map(m => `<td style="text-align:right;font-weight:600">${colTotals[m] > 0 ? eur(colTotals[m]) : ""}</td>`).join("")}
+      <td style="text-align:right;font-weight:700">${eur(grandTotal)}</td>
+    </tr></tbody>
+  </table></div>`;
 }
 
 function exportTRCsv() {
@@ -1254,6 +1412,149 @@ function renderEcheances() {
   });
 }
 
+function renderImpayes() {
+  const tbody = document.getElementById("impayesBody");
+  const kpis  = document.getElementById("impayesKpis");
+  if (!tbody) return;
+
+  const today = todayISO();
+  const rows  = loadEntries(KEYS.impayes);
+
+  // KPIs
+  const totalDette = rows.reduce((s, r) => s + parseNum(r.totalAmount), 0);
+  const totalPaye  = rows.reduce((s, r) => s + (r.payments||[]).reduce((ss, p) => ss + parseNum(p.amount), 0), 0);
+  const totalReste = totalDette - totalPaye;
+  if (kpis) kpis.innerHTML = [
+    { label: "Total dettes",    value: eur(totalDette), cls: totalDette > 0 ? "danger" : "" },
+    { label: "Total rembourse", value: eur(totalPaye),  cls: "ok" },
+    { label: "Reste a payer",   value: eur(totalReste), cls: totalReste > 0 ? "danger" : "ok", big: true }
+  ].map(c =>
+    `<div class="kpi${c.big?" kpi-hero":""}"><div class="v ${c.cls||""}">${c.value}</div><div class="l">${c.label}</div></div>`
+  ).join("");
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="muted-val" style="text-align:center;padding:16px">Aucun impaye enregistre \uD83C\uDF89</td></tr>`;
+    return;
+  }
+
+  // Tri : non soldés d'abord, puis par date
+  const sorted = [...rows].sort((a, b) => {
+    const aR = parseNum(a.totalAmount) - (a.payments||[]).reduce((s,p)=>s+parseNum(p.amount),0);
+    const bR = parseNum(b.totalAmount) - (b.payments||[]).reduce((s,p)=>s+parseNum(p.amount),0);
+    if (aR > 0 && bR <= 0) return -1;
+    if (aR <= 0 && bR > 0) return  1;
+    return String(a.createdDate||"").localeCompare(String(b.createdDate||""));
+  });
+
+  let html = "";
+  for (const r of sorted) {
+    const paid  = (r.payments||[]).reduce((s, p) => s + parseNum(p.amount), 0);
+    const reste = Math.max(0, parseNum(r.totalAmount) - paid);
+    const isDone = reste <= 0;
+    const isLate = reste > 0 && String(r.createdDate||"") < today;
+    const rowCls = isDone ? "row-settled" : isLate ? "row-overdue" : "";
+
+    html += `<tr class="${rowCls}">
+      <td>${r.createdDate||"-"}</td>
+      <td><strong>${r.creditor||"-"}</strong></td>
+      <td>${r.label||"-"}${r.note?` <span class="muted" style="font-size:11px">(${r.note})</span>`:""}</td>
+      <td class="${isDone?"":"danger"}">${eur(r.totalAmount)}</td>
+      <td class="ok">${paid > 0 ? eur(paid) : ""}</td>
+      <td class="${reste>0?"danger":"ok"}"><strong>${eur(reste)}</strong></td>
+      <td>${isDone
+        ? `<span class="tag" style="background:#dcfce7;border-color:#16a34a;color:#166534">SOLDE</span>`
+        : `<span class="tag warn">EN COURS</span>`}</td>
+      <td style="white-space:nowrap">
+        ${!isDone ? `<button type="button" class="btn-imp-pay" data-id="${r.id}">+ Versement</button>` : ""}
+        <button type="button" class="btn-imp-del" data-id="${r.id}" style="background:#94a3b8;margin-left:4px">Suppr.</button>
+      </td>
+    </tr>`;
+
+    // Sous-lignes : historique des versements
+    for (const p of (r.payments||[])) {
+      html += `<tr class="debit-line-row">
+        <td class="dl-indent">\u2514</td>
+        <td style="font-size:12px;color:#475569">${p.date}</td>
+        <td colspan="2" style="font-size:12px;color:#475569">${p.motif||"-"}</td>
+        <td class="ok" style="font-size:12px">${eur(p.amount)}</td>
+        <td></td><td></td>
+        <td><button type="button" class="btn-imp-del-pay" data-id="${r.id}" data-pid="${p.id}" style="background:#94a3b8;font-size:11px;padding:2px 7px">\u00d7</button></td>
+      </tr>`;
+    }
+
+    // Formulaire de versement (caché par défaut)
+    html += `<tr id="impform-${r.id}" style="display:none;background:#f0f9ff">
+      <td class="dl-indent">\u2514</td>
+      <td colspan="6">
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:6px 0">
+          <label style="font-size:12px;margin:0">Date
+            <input type="date" id="impfd-${r.id}" value="${today}" style="margin-left:4px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px">
+          </label>
+          <label style="font-size:12px;margin:0">Montant (&euro;)
+            <input type="number" id="impfa-${r.id}" step="0.01" min="0" placeholder="${reste.toFixed(2)}" style="margin-left:4px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;width:100px">
+          </label>
+          <label style="font-size:12px;margin:0;flex:1">Motif
+            <input type="text" id="impfm-${r.id}" placeholder="Virement, especes, cheque..." style="margin-left:4px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;width:100%">
+          </label>
+          <button type="button" class="btn-imp-save" data-id="${r.id}" style="padding:5px 14px">Enregistrer</button>
+          <button type="button" class="btn-imp-cancel" data-id="${r.id}" style="padding:5px 14px;background:#94a3b8">Annuler</button>
+        </div>
+      </td>
+      <td></td>
+    </tr>`;
+  }
+
+  tbody.innerHTML = html;
+
+  // Listeners délégués
+  tbody.querySelectorAll(".btn-imp-pay").forEach(b => {
+    b.onclick = () => {
+      const f = document.getElementById(`impform-${b.dataset.id}`);
+      if (f) f.style.display = f.style.display === "none" ? "" : "none";
+    };
+  });
+  tbody.querySelectorAll(".btn-imp-cancel").forEach(b => {
+    b.onclick = () => {
+      const f = document.getElementById(`impform-${b.dataset.id}`);
+      if (f) f.style.display = "none";
+    };
+  });
+  tbody.querySelectorAll(".btn-imp-save").forEach(b => {
+    b.onclick = () => {
+      const id     = b.dataset.id;
+      const date   = document.getElementById(`impfd-${id}`)?.value || today;
+      const amount = parseNum(document.getElementById(`impfa-${id}`)?.value);
+      const motif  = String(document.getElementById(`impfm-${id}`)?.value || "").trim();
+      if (amount <= 0) { alert("Veuillez saisir un montant valide."); return; }
+      const all = loadEntries(KEYS.impayes);
+      const i   = all.findIndex(x => String(x.id) === id);
+      if (i < 0) return;
+      if (!all[i].payments) all[i].payments = [];
+      all[i].payments.push({ id: `pay-${Date.now()}-${Math.floor(Math.random()*1000)}`, date, amount, motif });
+      saveEntries(KEYS.impayes, all);
+      renderImpayes();
+    };
+  });
+  tbody.querySelectorAll(".btn-imp-del").forEach(b => {
+    b.onclick = () => {
+      if (!confirm("Supprimer cet impaye et tous ses versements ?")) return;
+      saveEntries(KEYS.impayes, loadEntries(KEYS.impayes).filter(x => String(x.id) !== b.dataset.id));
+      renderImpayes();
+    };
+  });
+  tbody.querySelectorAll(".btn-imp-del-pay").forEach(b => {
+    b.onclick = () => {
+      const all = loadEntries(KEYS.impayes);
+      const i   = all.findIndex(x => String(x.id) === b.dataset.id);
+      if (i >= 0) {
+        all[i].payments = (all[i].payments||[]).filter(p => String(p.id) !== b.dataset.pid);
+        saveEntries(KEYS.impayes, all);
+      }
+      renderImpayes();
+    };
+  });
+}
+
 function renderCoupons() {
   const cpTableBody = document.getElementById("cpTableBody");
   if (!cpTableBody) return;
@@ -1361,7 +1662,7 @@ function rerender() {
   renderDepenses();
   renderCoupons();
   renderDemarque();
-  renderHorizon();  // guard interne si onglet inactif
+  renderImpayes();
 }
 
 // ─── SECTION 12 : EVENT LISTENERS ────────────────────────────────────────────
@@ -1382,15 +1683,16 @@ document.getElementById("quickForm")?.addEventListener("submit", e => {
   e.preventDefault();
   const date  = document.getElementById("qDate")?.value;
   if (!date) return;
-  const ca    = parseNum(document.getElementById("qCa")?.value);
-  const comCb = parseNum(document.getElementById("qComCb")?.value);
-  const depot = parseNum(document.getElementById("qDepot")?.value);
-  const note  = String(document.getElementById("qNote")?.value || "").trim();
-  const defs  = getDefaults();
+  const ca      = parseNum(document.getElementById("qCa")?.value);
+  const comCb   = parseNum(document.getElementById("qComCb")?.value);
+  const depot   = parseNum(document.getElementById("qDepot")?.value);
+  const especes = parseNum(document.getElementById("qEspeces")?.value);
+  const note    = String(document.getElementById("qNote")?.value || "").trim();
+  const defs    = getDefaults();
 
   upsertEntry({
     date, _v: 2,
-    ca,
+    ca, especes,
     caN1:          0,
     credit2Label:  defs.credit2Label || "Credit client",   credit2Amount: 0,
     credit3Label:  defs.credit3Label || "Depot especes",   credit3Amount: depot,
@@ -1402,10 +1704,11 @@ document.getElementById("quickForm")?.addEventListener("submit", e => {
   });
 
   if (ca > 0) setManualProjection(date, 0);
-  document.getElementById("qCa").value    = "";
-  document.getElementById("qComCb").value = "";
-  document.getElementById("qDepot").value = "";
-  document.getElementById("qNote").value  = "";
+  document.getElementById("qCa").value      = "";
+  document.getElementById("qComCb").value   = "";
+  document.getElementById("qDepot").value   = "";
+  document.getElementById("qEspeces").value = "";
+  document.getElementById("qNote").value    = "";
   document.getElementById("qCa")?.focus();
   rerender();
 });
@@ -1589,6 +1892,25 @@ document.getElementById("scanCancelBtn")?.addEventListener("click", () => {
   if (badge) { badge.textContent = "PRET"; badge.classList.add("active"); }
 });
 
+// --- Impayes ---
+document.getElementById("impayeForm")?.addEventListener("submit", e => {
+  e.preventDefault();
+  const rows = loadEntries(KEYS.impayes);
+  rows.push({
+    id:          `imp-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+    createdDate: document.getElementById("impDate")?.value || todayISO(),
+    creditor:    String(document.getElementById("impCreditor")?.value||"").trim(),
+    label:       String(document.getElementById("impLabel")?.value||"").trim(),
+    totalAmount: parseNum(document.getElementById("impAmount")?.value),
+    note:        String(document.getElementById("impNote")?.value||"").trim(),
+    payments:    []
+  });
+  saveEntries(KEYS.impayes, rows);
+  document.getElementById("impayeForm").reset();
+  document.getElementById("impDate").value = todayISO();
+  renderImpayes();
+});
+
 // --- Echeances ---
 document.getElementById("echForm")?.addEventListener("submit", e => {
   e.preventDefault();
@@ -1765,8 +2087,7 @@ _setVal("catDate",          todayISO());
 _setVal("depDate",          todayISO());
 _setVal("cpSentDate",       todayISO());
 _setVal("scanDate",         todayISO());
-_setVal("horizonThreshold", getSoldeAlertThreshold());
-_setVal("horizonDays",      getHorizonDays());
+_setVal("impDate",          todayISO());
 
 bootDefaultCategories();
 bootTRSeed();
